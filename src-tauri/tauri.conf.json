@@ -14,9 +14,9 @@
       {
         "title": "TaskHUD",
         "width": 360,
-        "height": 480,
+        "height": 460,
         "minWidth": 320,
-        "minHeight": 360,
+        "minHeight": 420,
         "maxWidth": 520,
         "maxHeight": 760,
         "resizable": true,

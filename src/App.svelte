@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
   import { applyProposal, appendTask, parseTodo, toggleTask, type Proposal } from './lib/todo';
 
@@ -22,7 +23,6 @@
   let filePath: string | null = null;
   let documentVersion = '';
   let isDesktop = false;
-  let proposalOpen = false;
   let fileInput: HTMLInputElement;
   let newTaskInput: HTMLInputElement;
   let proposal: Proposal | null = {
@@ -32,8 +32,9 @@
   };
 
   $: tasks = parseTodo(markdown);
-  $: completedCount = tasks.filter(task => task.checked).length;
-  $: pendingCount = tasks.length - completedCount;
+  $: projectName = fileName === 'TODO.md' && sourceLabel === 'Démo locale'
+    ? 'Projet local'
+    : fileName.replace(/\.[^/.]+$/, '');
 
   onMount(() => {
     isDesktop = '__TAURI_INTERNALS__' in window;
@@ -59,7 +60,6 @@
     try {
       markdown = applyProposal(markdown, proposal);
       proposal = null;
-      proposalOpen = false;
       dirty = true;
       notice = 'Proposition acceptée.';
     } catch (error) {
@@ -69,8 +69,7 @@
 
   function rejectProposal() {
     proposal = null;
-    proposalOpen = false;
-    notice = 'Proposition refusée.';
+    notice = 'Proposition ignorée.';
   }
 
   function proposalOperationLabel(operation: Proposal['operation']) {
@@ -128,6 +127,13 @@
     }
   }
 
+  async function windowAction(action: 'minimize' | 'close') {
+    if (!isDesktop) return;
+    const currentWindow = getCurrentWindow();
+    if (action === 'minimize') await currentWindow.minimize();
+    else await currentWindow.close();
+  }
+
   function fileNameFromPath(path: string) {
     return path.split(/[\\/]/).pop() || 'TODO.md';
   }
@@ -153,31 +159,27 @@
 <main class="hud-shell">
   <header class="topbar">
     <div class="brand-lockup">
-      <span class="signal" aria-hidden="true"></span>
-      <div class="project-lockup">
-        <p class="brand">TaskHUD</p>
-        <p class="project-name" title={sourceLabel}>{fileName}</p>
+      <span class="list-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h1>Tasks</h1>
+    </div>
+    {#if isDesktop}
+      <div class="window-actions" aria-label="Contrôles de fenêtre">
+        <span class="pin-indicator" title="Toujours au premier plan" aria-label="Toujours au premier plan">⌖</span>
+        <button class="window-button" type="button" aria-label="Réduire la fenêtre" on:click={() => void windowAction('minimize')}>−</button>
+        <button class="window-button close-button" type="button" aria-label="Fermer TaskHUD" on:click={() => void windowAction('close')}>×</button>
       </div>
-    </div>
-    <div class="topbar-actions">
-      <button class="icon-button" type="button" aria-label="Ouvrir un fichier TODO.md" title="Ouvrir TODO.md" on:click={openFilePicker}>↗</button>
-      <button class="icon-button" class:save-ready={dirty} type="button" aria-label="Enregistrer TODO.md" title="Enregistrer TODO.md" disabled={!dirty} on:click={() => void saveFile()}>↓</button>
-    </div>
+    {/if}
     <input bind:this={fileInput} class="visually-hidden" type="file" accept=".md,.markdown,text/markdown" on:change={loadFile} />
   </header>
 
-  <section class="summary" aria-label="Résumé des tâches">
-    <div class="summary-copy">
-      <strong>{pendingCount} à faire</strong>
-      <span>{completedCount}/{tasks.length} terminées</span>
-    </div>
-    <span class:dirty class="sync-state">{dirty ? 'À enregistrer' : 'À jour'}</span>
-    <div class="progress-track" aria-hidden="true"><span style={`width: ${tasks.length ? (completedCount / tasks.length) * 100 : 0}%`}></span></div>
-  </section>
+  <button class="project-select" type="button" aria-label={`Ouvrir le projet ${projectName}`} on:click={openFilePicker}>
+    <span>{projectName}</span>
+    <span class="select-chevron" aria-hidden="true">⌄</span>
+  </button>
 
   <section class="task-section" aria-labelledby="tasks-heading">
     <div class="section-heading">
-      <h1 id="tasks-heading">À faire</h1>
+      <h2 id="tasks-heading">À faire</h2>
       <span class="task-count">{tasks.length}</span>
     </div>
 
@@ -187,6 +189,7 @@
           <li class:completed={task.checked} class="task-row">
             <label class="task-label">
               <input type="checkbox" checked={task.checked} aria-label={`Marquer « ${task.title} » comme ${task.checked ? 'non terminée' : 'terminée'}`} on:change={() => handleToggle(task.id)} />
+              <span class="checkmark" aria-hidden="true"></span>
               <span>{task.title}</span>
             </label>
           </li>
@@ -206,33 +209,28 @@
 
   {#if proposal}
     <section class="proposal" aria-labelledby="proposal-heading">
-      <button class="proposal-toggle" type="button" aria-expanded={proposalOpen} on:click={() => proposalOpen = !proposalOpen}>
-        <span class="proposal-dot" aria-hidden="true"></span>
-        <span class="proposal-summary">
-          <strong id="proposal-heading">1 proposition · {proposalOperationLabel(proposal.operation)}</strong>
-          <span>{proposal.title}</span>
-        </span>
-        <span class="proposal-chevron" aria-hidden="true">{proposalOpen ? '⌃' : '⌄'}</span>
-      </button>
-      {#if proposalOpen}
-        <div class="proposal-details">
-          <div class="diff" aria-label="Diff de la proposition">
-            <p class="diff-line diff-context">{fileName}</p>
-            {#if proposal.before}<p class="diff-line diff-remove">− {proposal.before}</p>{/if}
-            {#if proposal.after}<p class="diff-line diff-add">+ {proposal.after}</p>{/if}
-          </div>
-          <p class="proposal-note">Rien ne change avant votre décision.</p>
-          <div class="proposal-actions">
-            <button class="secondary-button" type="button" on:click={rejectProposal}>Refuser</button>
-            <button class="primary-button" type="button" on:click={acceptProposal}>Accepter</button>
-          </div>
+      <div class="proposal-heading">
+        <div class="proposal-title">
+          <span class="proposal-branch" aria-hidden="true">⑂</span>
+          <strong id="proposal-heading">Proposition de l’agent</strong>
+          <span class="proposal-count">1</span>
         </div>
-      {/if}
+        <span class="proposal-kind">{proposalOperationLabel(proposal.operation)}</span>
+      </div>
+      <div class="proposal-change">
+        {#if proposal.before}<p class="diff-remove">− {proposal.before}</p>{/if}
+        {#if proposal.after}<p class="diff-add">+ {proposal.after}</p>{/if}
+      </div>
+      <div class="proposal-actions">
+        <button class="primary-button" type="button" on:click={acceptProposal}>Accepter</button>
+        <button class="secondary-button" type="button" on:click={rejectProposal}>Ignorer</button>
+      </div>
     </section>
   {/if}
 
   <footer class="status-bar" role="status" aria-live="polite">
     <span class:is-dirty={dirty} class="status-dot" aria-hidden="true"></span>
     <span>{notice}</span>
+    {#if dirty}<button class="save-link" type="button" on:click={() => void saveFile()}>Enregistrer</button>{/if}
   </footer>
 </main>
