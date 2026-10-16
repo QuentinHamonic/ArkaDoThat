@@ -1,5 +1,15 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { applyProposal, appendTask, parseTodo, toggleTask, type Proposal } from './lib/todo';
+
+  type TodoSnapshot = {
+    path: string;
+    content: string;
+    version: string;
+    tasks: Array<{ id: string; title: string; checked: boolean; lineIndex: number }>;
+  };
 
   const demoMarkdown = `# TaskHUD\n\n## À faire\n- [ ] Examiner la proposition de l'agent\n- [ ] Vérifier le rendu à 320 px\n- [x] Écrire le contrat QA\n`;
 
@@ -9,6 +19,9 @@
   let sourceLabel = 'Démo locale';
   let notice = 'Aucune modification en attente.';
   let dirty = false;
+  let filePath: string | null = null;
+  let documentVersion = '';
+  let isDesktop = false;
   let fileInput: HTMLInputElement;
   let proposal: Proposal | null = {
     operation: 'add',
@@ -18,6 +31,10 @@
 
   $: tasks = parseTodo(markdown);
   $: completedCount = tasks.filter(task => task.checked).length;
+
+  onMount(() => {
+    isDesktop = '__TAURI_INTERNALS__' in window;
+  });
 
   function handleToggle(taskId: string) {
     markdown = toggleTask(markdown, taskId);
@@ -51,7 +68,58 @@
   }
 
   function openFilePicker() {
+    if (isDesktop) {
+      void openDesktopFile();
+      return;
+    }
     fileInput?.click();
+  }
+
+  async function openDesktopFile() {
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'TODO.md', extensions: ['md'] }],
+      });
+      if (typeof selected !== 'string') return;
+
+      const snapshot = await invoke<TodoSnapshot>('read_todo', { path: selected });
+      markdown = snapshot.content;
+      filePath = snapshot.path;
+      documentVersion = snapshot.version;
+      fileName = fileNameFromPath(snapshot.path);
+      sourceLabel = 'Fichier chargé';
+      dirty = false;
+      notice = 'Fichier chargé depuis le disque.';
+    } catch (error) {
+      notice = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  async function saveFile() {
+    if (!dirty) return;
+    if (!isDesktop || !filePath) {
+      notice = 'La sauvegarde disque est disponible dans l’application TaskHUD desktop.';
+      return;
+    }
+
+    try {
+      const snapshot = await invoke<TodoSnapshot>('save_todo', {
+        path: filePath,
+        expectedVersion: documentVersion,
+        content: markdown,
+      });
+      documentVersion = snapshot.version;
+      dirty = false;
+      notice = 'TODO.md enregistré.';
+    } catch (error) {
+      notice = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  function fileNameFromPath(path: string) {
+    return path.split(/[\\/]/).pop() || 'TODO.md';
   }
 
   async function loadFile(event: Event) {
@@ -81,7 +149,10 @@
         <p class="subtitle">un regard sur le prochain geste</p>
       </div>
     </div>
-    <button class="icon-button" type="button" aria-label="Ouvrir un fichier TODO.md" title="Ouvrir TODO.md" on:click={openFilePicker}>↗</button>
+    <div class="topbar-actions">
+      <button class="icon-button" type="button" aria-label="Ouvrir un fichier TODO.md" title="Ouvrir TODO.md" on:click={openFilePicker}>↗</button>
+      <button class="icon-button" class:save-ready={dirty} type="button" aria-label="Enregistrer TODO.md" title="Enregistrer TODO.md" disabled={!dirty} on:click={() => void saveFile()}>↓</button>
+    </div>
     <input bind:this={fileInput} class="visually-hidden" type="file" accept=".md,.markdown,text/markdown" on:change={loadFile} />
   </header>
 
