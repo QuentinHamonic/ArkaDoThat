@@ -11,7 +11,7 @@ const outputIndex = args.indexOf('--output');
 const outputPath = outputIndex >= 0 ? resolve(args[outputIndex + 1]) : join(root, 'qa', `report-${phase}.json`);
 const commitIndex = args.indexOf('--commit');
 const commit = commitIndex >= 0 ? args[commitIndex + 1] : 'working-tree';
-const model = process.env.TASKHUD_CLAUDE_MODEL ?? 'sonnet';
+const model = process.env.TASKHUD_CLAUDE_MODEL ?? 'claude-sonnet-5';
 const effort = process.env.TASKHUD_CLAUDE_EFFORT ?? 'medium';
 
 const prompt = await readFile(join(root, 'qa', 'QA-PROMPT.md'), 'utf8');
