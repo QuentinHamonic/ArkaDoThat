@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
   import { applyProposal, appendTask, parseTodo, toggleTask, type Proposal } from './lib/todo';
 
@@ -17,20 +18,23 @@
   let newTask = '';
   let fileName = 'TODO.md';
   let sourceLabel = 'Démo locale';
-  let notice = 'Aucune modification en attente.';
+  let notice = 'Prêt.';
   let dirty = false;
   let filePath: string | null = null;
   let documentVersion = '';
   let isDesktop = false;
   let fileInput: HTMLInputElement;
+  let newTaskInput: HTMLInputElement;
   let proposal: Proposal | null = {
     operation: 'add',
-    title: 'Proposition d’agent',
+    title: 'Proposition de l’agent',
     after: 'Ajouter une vérification de persistance',
   };
 
   $: tasks = parseTodo(markdown);
-  $: completedCount = tasks.filter(task => task.checked).length;
+  $: projectName = fileName === 'TODO.md' && sourceLabel === 'Démo locale'
+    ? 'Projet local'
+    : fileName.replace(/\.[^/.]+$/, '');
 
   onMount(() => {
     isDesktop = '__TAURI_INTERNALS__' in window;
@@ -39,7 +43,7 @@
   function handleToggle(taskId: string) {
     markdown = toggleTask(markdown, taskId);
     dirty = true;
-    notice = 'État modifié localement.';
+    notice = 'Modification locale.';
   }
 
   function handleAdd() {
@@ -47,7 +51,8 @@
     markdown = appendTask(markdown, newTask);
     newTask = '';
     dirty = true;
-    notice = 'Tâche ajoutée localement.';
+    notice = 'Tâche ajoutée.';
+    newTaskInput?.focus();
   }
 
   function acceptProposal() {
@@ -56,7 +61,7 @@
       markdown = applyProposal(markdown, proposal);
       proposal = null;
       dirty = true;
-      notice = 'Proposition acceptée. Le diff est appliqué localement.';
+      notice = 'Proposition acceptée.';
     } catch (error) {
       notice = error instanceof Error ? error.message : 'Proposition impossible à appliquer.';
     }
@@ -64,7 +69,11 @@
 
   function rejectProposal() {
     proposal = null;
-    notice = 'Proposition refusée. La liste reste inchangée.';
+    notice = 'Proposition ignorée.';
+  }
+
+  function proposalOperationLabel(operation: Proposal['operation']) {
+    return operation === 'add' ? 'Ajout' : operation === 'edit' ? 'Modification' : 'Suppression';
   }
 
   function openFilePicker() {
@@ -89,9 +98,9 @@
       filePath = snapshot.path;
       documentVersion = snapshot.version;
       fileName = fileNameFromPath(snapshot.path);
-      sourceLabel = 'Fichier chargé';
+      sourceLabel = 'Fichier local';
       dirty = false;
-      notice = 'Fichier chargé depuis le disque.';
+      notice = 'Fichier ouvert.';
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     }
@@ -100,7 +109,7 @@
   async function saveFile() {
     if (!dirty) return;
     if (!isDesktop || !filePath) {
-      notice = 'La sauvegarde disque est disponible dans l’application TaskHUD desktop.';
+      notice = 'Disponible dans TaskHUD desktop.';
       return;
     }
 
@@ -112,10 +121,17 @@
       });
       documentVersion = snapshot.version;
       dirty = false;
-      notice = 'TODO.md enregistré.';
+      notice = 'Enregistré.';
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     }
+  }
+
+  async function windowAction(action: 'minimize' | 'close') {
+    if (!isDesktop) return;
+    const currentWindow = getCurrentWindow();
+    if (action === 'minimize') await currentWindow.minimize();
+    else await currentWindow.close();
   }
 
   function fileNameFromPath(path: string) {
@@ -129,56 +145,42 @@
 
     markdown = await file.text();
     fileName = file.name;
-    sourceLabel = 'Fichier chargé';
+    sourceLabel = 'Fichier local';
     dirty = false;
-    notice = 'Fichier chargé en mémoire. La sauvegarde Tauri viendra dans la tranche desktop.';
+    notice = 'Fichier ouvert.';
     input.value = '';
   }
 </script>
 
 <svelte:head>
-  <meta name="description" content="Une liste TODO locale, compacte et lisible pour les projets avec agents IA." />
+  <meta name="description" content="Un overlay local et discret pour les tâches d'un projet." />
 </svelte:head>
 
 <main class="hud-shell">
   <header class="topbar">
     <div class="brand-lockup">
-      <span class="signal" aria-hidden="true"></span>
-      <div>
-        <p class="brand">TaskHUD</p>
-        <p class="subtitle">un regard sur le prochain geste</p>
+      <span class="list-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h1>Tasks</h1>
+    </div>
+    {#if isDesktop}
+      <div class="window-actions" aria-label="Contrôles de fenêtre">
+        <span class="pin-indicator" title="Toujours au premier plan" aria-label="Toujours au premier plan">⌖</span>
+        <button class="window-button" type="button" aria-label="Réduire la fenêtre" on:click={() => void windowAction('minimize')}>−</button>
+        <button class="window-button close-button" type="button" aria-label="Fermer TaskHUD" on:click={() => void windowAction('close')}>×</button>
       </div>
-    </div>
-    <div class="topbar-actions">
-      <button class="icon-button" type="button" aria-label="Ouvrir un fichier TODO.md" title="Ouvrir TODO.md" on:click={openFilePicker}>↗</button>
-      <button class="icon-button" class:save-ready={dirty} type="button" aria-label="Enregistrer TODO.md" title="Enregistrer TODO.md" disabled={!dirty} on:click={() => void saveFile()}>↓</button>
-    </div>
+    {/if}
     <input bind:this={fileInput} class="visually-hidden" type="file" accept=".md,.markdown,text/markdown" on:change={loadFile} />
   </header>
 
-  <section class="source-strip" aria-label="Source active">
-    <div>
-      <span class="eyebrow">Projet actif</span>
-      <strong>{fileName}</strong>
-    </div>
-    <span class:dirty class="source-state">{dirty ? 'modifié localement' : sourceLabel}</span>
-  </section>
-
-  <section class="progress-block" aria-label="Progression des tâches">
-    <div class="progress-copy">
-      <span><strong>{completedCount}</strong> / {tasks.length} terminées</span>
-      <span class="quiet">source lisible · Markdown</span>
-    </div>
-    <div class="progress-track" aria-hidden="true"><span style={`width: ${tasks.length ? (completedCount / tasks.length) * 100 : 0}%`}></span></div>
-  </section>
+  <button class="project-select" type="button" aria-label={`Ouvrir le projet ${projectName}`} on:click={openFilePicker}>
+    <span>{projectName}</span>
+    <span class="select-chevron" aria-hidden="true">⌄</span>
+  </button>
 
   <section class="task-section" aria-labelledby="tasks-heading">
     <div class="section-heading">
-      <div>
-        <span class="eyebrow">Maintenant</span>
-        <h1 id="tasks-heading">À faire</h1>
-      </div>
-      <span class="task-count">{tasks.length} tâches</span>
+      <h2 id="tasks-heading">À faire</h2>
+      <span class="task-count">{tasks.length}</span>
     </div>
 
     {#if tasks.length}
@@ -187,18 +189,20 @@
           <li class:completed={task.checked} class="task-row">
             <label class="task-label">
               <input type="checkbox" checked={task.checked} aria-label={`Marquer « ${task.title} » comme ${task.checked ? 'non terminée' : 'terminée'}`} on:change={() => handleToggle(task.id)} />
+              <span class="checkmark" aria-hidden="true"></span>
               <span>{task.title}</span>
             </label>
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="empty-state">Aucune tâche dans ce fichier. Ajoutez le prochain geste ci-dessous.</p>
+      <p class="empty-state">Aucune tâche. Ajoutez le prochain geste.</p>
     {/if}
 
     <form class="add-task" on:submit|preventDefault={handleAdd}>
       <label class="visually-hidden" for="new-task">Nouvelle tâche</label>
-      <input id="new-task" bind:value={newTask} type="text" placeholder="Ajouter le prochain geste…" autocomplete="off" />
+      <span class="add-mark" aria-hidden="true">+</span>
+      <input bind:this={newTaskInput} id="new-task" bind:value={newTask} type="text" placeholder="Ajouter une tâche" autocomplete="off" />
       <button class="add-button" type="submit">Ajouter</button>
     </form>
   </section>
@@ -206,20 +210,20 @@
   {#if proposal}
     <section class="proposal" aria-labelledby="proposal-heading">
       <div class="proposal-heading">
-        <div>
-          <span class="eyebrow accent-label">Proposition d’agent</span>
-          <h2 id="proposal-heading">{proposal.title}</h2>
+        <div class="proposal-title">
+          <span class="proposal-branch" aria-hidden="true">⑂</span>
+          <strong id="proposal-heading">Proposition de l’agent</strong>
+          <span class="proposal-count">1</span>
         </div>
-        <span class="proposal-kind">ajout</span>
+        <span class="proposal-kind">{proposalOperationLabel(proposal.operation)}</span>
       </div>
-      <div class="diff" aria-label="Diff de la proposition">
-        <p class="diff-line diff-context">  {fileName}</p>
-        <p class="diff-line diff-add">+ {proposal.after}</p>
+      <div class="proposal-change">
+        {#if proposal.before}<p class="diff-remove">− {proposal.before}</p>{/if}
+        {#if proposal.after}<p class="diff-add">+ {proposal.after}</p>{/if}
       </div>
-      <p class="proposal-note">Rien ne change avant votre décision.</p>
       <div class="proposal-actions">
-        <button class="secondary-button" type="button" on:click={rejectProposal}>Refuser</button>
         <button class="primary-button" type="button" on:click={acceptProposal}>Accepter</button>
+        <button class="secondary-button" type="button" on:click={rejectProposal}>Ignorer</button>
       </div>
     </section>
   {/if}
@@ -227,5 +231,6 @@
   <footer class="status-bar" role="status" aria-live="polite">
     <span class:is-dirty={dirty} class="status-dot" aria-hidden="true"></span>
     <span>{notice}</span>
+    {#if dirty}<button class="save-link" type="button" on:click={() => void saveFile()}>Enregistrer</button>{/if}
   </footer>
 </main>

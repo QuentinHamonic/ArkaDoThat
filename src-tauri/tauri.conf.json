@@ -13,10 +13,12 @@
     "windows": [
       {
         "title": "TaskHUD",
-        "width": 440,
-        "height": 760,
+        "width": 360,
+        "height": 460,
         "minWidth": 320,
         "minHeight": 420,
+        "maxWidth": 520,
+        "maxHeight": 760,
         "resizable": true,
         "fullscreen": false,
         "alwaysOnTop": true
