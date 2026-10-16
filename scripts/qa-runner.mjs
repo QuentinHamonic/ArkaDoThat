@@ -11,6 +11,8 @@ const outputIndex = args.indexOf('--output');
 const outputPath = outputIndex >= 0 ? resolve(args[outputIndex + 1]) : join(root, 'qa', `report-${phase}.json`);
 const commitIndex = args.indexOf('--commit');
 const commit = commitIndex >= 0 ? args[commitIndex + 1] : 'working-tree';
+const model = process.env.TASKHUD_CLAUDE_MODEL ?? 'sonnet';
+const effort = process.env.TASKHUD_CLAUDE_EFFORT ?? 'medium';
 
 const prompt = await readFile(join(root, 'qa', 'QA-PROMPT.md'), 'utf8');
 const spec = await readFile(join(root, 'docs', 'SPEC.md'), 'utf8');
@@ -20,6 +22,8 @@ const request = `${prompt}\n\nPhase: ${phase}\nRéférence Git: ${commit}\n\nTâ
 const child = spawn('claude.exe', [
   '--print',
   '--no-session-persistence',
+  '--model', model,
+  '--effort', effort,
   '--output-format', 'json',
   '--allowedTools=Read,Glob,Grep,Bash(git:*)',
   request,
@@ -40,6 +44,8 @@ const report = {
   commit,
   exitCode,
   executedAt: new Date().toISOString(),
+  model,
+  effort,
   claude: stdout.trim(),
   stderr: stderr.trim(),
   verdict: exitCode === 0 && stdout.trim() ? 'REVIEW_REQUIRED' : 'BLOCKED',
