@@ -1,8 +1,8 @@
 # État TaskHUD
 
-- État actuel : fondation V0.1 et serveur MCP `stdio` en cours, avec cœur Rust indépendant de Tauri et de MCP.
-- Dernière vérification : 6 tests Rust, `cargo check --workspace`, smoke test MCP (négociation + 6 outils + proposition sans écriture directe) et `npm run check` passent.
-- Limite constatée : l’inspection automatisée de la fenêtre native n’est pas disponible dans cette session ; le parcours desktop visuel reste non vérifié.
-- Prochaine action : faire relire la tranche MCP par Claude avec `sonnet`/effort `medium`, puis préparer la tranche VS Code.
-- QA indépendante : orchestrateur versionné et maintenant traçable (`model` + `effort` dans le rapport), aucun verdict indépendant actuel.
-- Git : `feat/taskhud-markdown-mvp` / PR #1 vers `dev` ; `feat/taskhud-mcp-stdio` empilée sur cette branche.
+- État actuel : fondation V0.1, serveur MCP `stdio` et redesign de l’overlay en cours.
+- Dernière vérification : 6 tests Rust, `cargo check --workspace`, smoke test MCP, `npm run check` et parcours navigateur à 320/768 px passent ; le focus revient après ajout.
+- Limite constatée : l’inspection automatisée de la fenêtre native Tauri reste indisponible ; le rendu desktop réel est couvert seulement par la compilation et la vérification web.
+- Prochaine action : commit/push de l’overlay compact, puis faire valider cette tranche par Claude avec `sonnet`/effort `medium` en autorisant ses contrôles locaux.
+- QA indépendante : review MCP enregistrée dans `qa/verify-report-mcp.json`, verdict Claude `BLOCKED` faute d’exécution npm/Playwright dans sa session.
+- Git : PR #1 `feat/taskhud-markdown-mvp` vers `dev` ; PR #2 `feat/taskhud-mcp-stdio` empilée ; branche courante `feat/taskhud-overlay-redesign`.
