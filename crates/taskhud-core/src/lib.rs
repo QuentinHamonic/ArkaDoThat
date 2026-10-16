@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+mod projects;
+mod proposals;
+
+pub use projects::{Project, ProjectRegistry};
+pub use proposals::{ProposalStatus, ProposalStore, TaskChange, TaskProposal};
+
 #[derive(Debug, Error)]
 pub enum TodoError {
     #[error("impossible de lire {path}: {source}")]
@@ -25,6 +31,12 @@ pub enum TodoError {
     Conflict { expected: String, actual: String },
     #[error("le chemin doit viser un fichier TODO.md")]
     InvalidTodoPath,
+    #[error("le projet {0} n'existe pas")]
+    ProjectNotFound(String),
+    #[error("la proposition {0} n'existe pas")]
+    ProposalNotFound(String),
+    #[error("configuration invalide {path}: {message}")]
+    InvalidConfig { path: PathBuf, message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -199,7 +211,7 @@ fn content_version(content: &str) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn atomic_write(path: &Path, content: &str) -> Result<(), TodoError> {
+pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), TodoError> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let file_name = path
         .file_name()
@@ -350,5 +362,46 @@ mod tests {
         assert!(ensure_todo_path("notes.md").is_err());
         assert!(ensure_todo_path("todo.md").is_ok());
         assert!(ensure_todo_path("TODO.md").is_ok());
+    }
+
+    #[test]
+    fn proposals_are_persisted_and_duplicate_pending_changes_are_reused() {
+        let root = std::env::temp_dir().join(format!(
+            "taskhud-core-proposals-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let mut store = ProposalStore::open(&root).unwrap();
+        let changes = vec![TaskChange::Add {
+            title: "Ajouter une vérification".to_owned(),
+            after_task_id: None,
+        }];
+
+        let first = store
+            .add(
+                "demo".to_owned(),
+                "version-1".to_owned(),
+                "Audit terminé".to_owned(),
+                changes.clone(),
+            )
+            .unwrap();
+        let duplicate = store
+            .add(
+                "demo".to_owned(),
+                "version-1".to_owned(),
+                "Audit terminé".to_owned(),
+                changes,
+            )
+            .unwrap();
+        assert_eq!(first, duplicate);
+        assert_eq!(store.list().len(), 1);
+
+        let reloaded = ProposalStore::open(&root).unwrap();
+        assert_eq!(reloaded.get(&first.id).unwrap(), &first);
+        let _ = fs::remove_dir_all(root);
     }
 }

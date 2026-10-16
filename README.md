@@ -1,28 +1,40 @@
 # TaskHUD
 
-TaskHUD est un mini gestionnaire de tâches local pour les développeurs qui travaillent avec des agents IA.
+TaskHUD is a small local desktop overlay for developers who work with AI agents. It keeps one readable `TODO.md` per project, lets a human edit it, and exposes agent suggestions as reviewable local proposals.
 
-Le projet vise une petite fenêtre toujours accessible, centrée sur un fichier `TODO.md` par projet. Les données restent locales et lisibles ; aucun compte ni service cloud n’est nécessaire.
+No account, cloud service, database, or HTTP server is required for the local workflow.
 
-## État du projet
+## Current status
 
-Le premier prototype vérifiable est une interface web locale qui couvre le parcours `TODO.md` : chargement, lecture, coche, ajout, proposition sous forme de diff et acceptation/refus. Il ne s’agit pas encore du binaire Tauri.
+The repository currently contains the V0.1 Tauri/Rust foundation and an independent `taskhud-mcp` stdio server. The desktop shell can load and save `TODO.md`; the MCP server can read registered projects and persist proposals without applying them.
 
-La compilation Tauri est bloquée sur la machine actuelle tant que Rust/Cargo ne sont pas installés. Voir [STATE.md](STATE.md) pour le point de reprise.
+This is not yet a packaged public release. VS Code workspace tracking, the final proposal UI, installers, and cross-platform builds are still in progress. See [STATE.md](STATE.md) for the operational checkpoint.
 
-## Développement local
+## Local development
 
-```text
+Requirements: Node.js, Rust with the MSVC toolchain on Windows, and the platform prerequisites documented by Tauri.
+
+```powershell
 npm install
-npm run dev
+npm run check
+$env:Path = "C:\Users\you\.cargo\bin;$env:Path"
+cargo test -p taskhud-core
+cargo check --workspace
+npx tauri dev
 ```
 
-Puis ouvrir l’URL affichée par Vite. La commande `npm run check` vérifie le typage et le build frontend.
+The MCP server can be run independently:
 
-## Vérification indépendante
+```powershell
+cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
+```
 
-Le contrat QA est figé dans [docs/SPEC.md](docs/SPEC.md) et [qa/QA-PROMPT.md](qa/QA-PROMPT.md). Le script `scripts/qa-runner.mjs` invoque Claude CLI dans une session neuve et conserve un rapport persistant.
+See [docs/MCP.md](docs/MCP.md) for the local registry format and client configuration.
 
-## Licence
+## QA
 
-À définir avant la première publication publique.
+The acceptance contract is in [docs/SPEC.md](docs/SPEC.md). The versioned runner in `scripts/qa-runner.mjs` invokes Claude Code with a pinned Sonnet model and medium effort by default, records the tested commit and configuration, and never treats an unavailable review as a pass.
+
+## License
+
+TaskHUD is released under the MIT License. See [LICENSE](LICENSE).
