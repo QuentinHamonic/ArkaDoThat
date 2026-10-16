@@ -1,0 +1,10 @@
+{
+  "runner": "taskhud-qa-runner-v1",
+  "phase": "design",
+  "commit": "working-tree",
+  "exitCode": 1,
+  "executedAt": "2026-10-16T11:31:00.103Z",
+  "claude": "",
+  "stderr": "Error: Input must be provided either through stdin or as a prompt argument when using --print",
+  "verdict": "BLOCKED"
+}
