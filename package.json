@@ -1,0 +1,19 @@
+{
+  "name": "taskhud",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit && vite build",
+    "qa:design": "node scripts/qa-runner.mjs --phase=design --output qa/design-report.json",
+    "qa:verify": "node scripts/qa-runner.mjs --phase=verify --output qa/verify-report.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "svelte": "^5.38.7",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7"
+  }
+}
