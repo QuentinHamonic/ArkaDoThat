@@ -21,3 +21,7 @@ The product draws on Markdown TODO extensions that keep the list human and diffa
 ## 2026-11-12 — English by default, French as an option
 
 TaskHUD is going open source, so the code, documentation, connector messages and default interface are in English. The interface keeps a French dictionary selectable in Settings. Strings live in a small typed dictionary (`src/lib/i18n.ts`) with no i18n dependency: two languages and a few dozen strings do not justify one. Backend error messages and MCP descriptions stay English only, because they are read by developers and AI clients.
+
+## 2026-11-12 — One task syntax for the core and the webview
+
+A task line starts, after optional spaces or tabs, with `- [ ]`, `- [x]` or `- [X]`, followed by at least one space or tab and a non-empty title (trimmed). Anything else, such as `- [ ]` in the middle of a line, `-[ ] title` or an empty `- [ ]`, stays plain text. The Rust core (`parse_task_line`) and the webview (`src/lib/todo.ts`) both test this rule against the same table, `crates/taskhud-core/fixtures/task-syntax.json`, so their task IDs and line numbers cannot drift apart.

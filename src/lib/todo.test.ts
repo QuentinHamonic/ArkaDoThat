@@ -20,3 +20,20 @@ test('appendTask keeps CRLF line endings', () => {
 test('parseTodo still reads CRLF files', () => {
   assert.deepEqual(parseTodo('- [ ] First\r\n').map(task => task.title), ['First']);
 });
+
+type SyntaxCase = { line: string; task: { checked: boolean; title: string } | null };
+
+test('parseTodo follows the shared task syntax table', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const table = JSON.parse(
+    await readFile(new URL('../../crates/taskhud-core/fixtures/task-syntax.json', import.meta.url), 'utf-8'),
+  ) as { cases: SyntaxCase[] };
+  for (const { line, task } of table.cases) {
+    const parsed = parseTodo(line).map(({ checked, title }) => ({ checked, title }));
+    assert.deepEqual(parsed, task ? [task] : [], JSON.stringify(line));
+  }
+});
+
+test('toggleTask unchecks an upper-case [X]', () => {
+  assert.equal(toggleTask('- [X] Done\n', 'task-0'), '- [ ] Done\n');
+});

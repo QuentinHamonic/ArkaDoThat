@@ -333,6 +333,39 @@ pub fn ensure_todo_path(path: impl AsRef<Path>) -> Result<PathBuf, TodoError> {
     Ok(path.to_path_buf())
 }
 
+struct TaskLine<'a> {
+    /// Byte offset of the checkbox marker (` `, `x` or `X`) inside the line.
+    marker_offset: usize,
+    checked: bool,
+    title: &'a str,
+}
+
+/// Task syntax shared with `src/lib/todo.ts` (cases in `fixtures/task-syntax.json`):
+/// optional spaces or tabs, then `- [ ]`, `- [x]` or `- [X]`, then at least one
+/// space or tab and a non-empty title.
+fn parse_task_line(line: &str) -> Option<TaskLine<'_>> {
+    let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
+    let rest = line[indent..].strip_prefix("- [")?;
+    let checked = match rest.as_bytes().first()? {
+        b' ' => false,
+        b'x' | b'X' => true,
+        _ => return None,
+    };
+    let rest = rest[1..].strip_prefix(']')?;
+    if !rest.starts_with([' ', '\t']) {
+        return None;
+    }
+    let title = rest.trim();
+    if title.is_empty() {
+        return None;
+    }
+    Some(TaskLine {
+        marker_offset: indent + 3,
+        checked,
+        title,
+    })
+}
+
 fn parse_tasks(content: &str) -> Vec<ParsedTask> {
     let mut tasks = Vec::new();
     let mut offset = 0;
@@ -340,22 +373,16 @@ fn parse_tasks(content: &str) -> Vec<ParsedTask> {
     for (line_index, segment) in content.split_inclusive('\n').enumerate() {
         let line = segment.strip_suffix('\n').unwrap_or(segment);
         let line = line.strip_suffix('\r').unwrap_or(line);
-        if let Some(marker_start) = line.find("- [") {
-            let checkbox_offset = marker_start + 3;
-            let marker = line.as_bytes().get(checkbox_offset).copied();
-            let closing = line.as_bytes().get(checkbox_offset + 1).copied();
-            if matches!(marker, Some(b' ' | b'x' | b'X')) && closing == Some(b']') {
-                let title = line[checkbox_offset + 2..].trim();
-                tasks.push(ParsedTask {
-                    task: Task {
-                        id: format!("task-{line_index}"),
-                        title: title.to_owned(),
-                        checked: marker != Some(b' '),
-                        line_index,
-                    },
-                    checkbox_offset: offset + checkbox_offset,
-                });
-            }
+        if let Some(parsed) = parse_task_line(line) {
+            tasks.push(ParsedTask {
+                task: Task {
+                    id: format!("task-{line_index}"),
+                    title: parsed.title.to_owned(),
+                    checked: parsed.checked,
+                    line_index,
+                },
+                checkbox_offset: offset + parsed.marker_offset,
+            });
         }
         offset += segment.len();
     }
@@ -369,11 +396,11 @@ fn content_version(content: &str) -> String {
 }
 
 fn render_task_line(line: &str, title: &str, checked: bool) -> String {
-    let marker_start = line.find("- [").unwrap_or(0);
-    let checkbox_offset = marker_start + 3;
+    // Only called for lines parsed as tasks; the fallback keeps a bare checkbox.
+    let prefix = parse_task_line(line).map_or("- [", |parsed| &line[..parsed.marker_offset]);
     format!(
         "{}{}] {}",
-        &line[..checkbox_offset],
+        prefix,
         if checked { 'x' } else { ' ' },
         title.trim()
     )
@@ -466,6 +493,25 @@ mod tests {
         assert_eq!(snapshot.tasks[1].id, "task-3");
         assert!(snapshot.tasks[1].checked);
         assert_eq!(snapshot.content, content);
+    }
+
+    #[test]
+    fn parse_tasks_follows_the_shared_task_syntax_table() {
+        let table: serde_json::Value =
+            serde_json::from_str(include_str!("../fixtures/task-syntax.json")).unwrap();
+        for case in table["cases"].as_array().unwrap() {
+            let line = case["line"].as_str().unwrap();
+            let parsed: Vec<_> = parse_tasks(line)
+                .into_iter()
+                .map(|parsed| serde_json::json!({ "checked": parsed.task.checked, "title": parsed.task.title }))
+                .collect();
+            let expected: Vec<_> = case["task"]
+                .as_object()
+                .map(|task| serde_json::Value::Object(task.clone()))
+                .into_iter()
+                .collect();
+            assert_eq!(parsed, expected, "line {line:?}");
+        }
     }
 
     #[test]

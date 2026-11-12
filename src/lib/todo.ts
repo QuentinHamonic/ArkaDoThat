@@ -5,17 +5,20 @@ export type Task = {
   lineIndex: number;
 };
 
-const taskPattern = /^(\s*)-\s*\[([ xX])\]\s+(.*?)\s*$/;
+// Task syntax shared with the Rust core (cases in crates/taskhud-core/fixtures/task-syntax.json):
+// optional spaces or tabs, then `- [ ]`, `- [x]` or `- [X]`, then at least one space or tab and a non-empty title.
+const taskPattern = /^[ \t]*- \[([ xX])\][ \t]+(.*)$/;
 
 export function parseTodo(markdown: string): Task[] {
   return markdown.split(/\r?\n/).flatMap((line, lineIndex) => {
     const match = line.match(taskPattern);
-    if (!match) return [];
+    const title = match?.[2].trim();
+    if (!match || !title) return [];
 
     return [{
       id: `task-${lineIndex}`,
-      title: match[3],
-      checked: match[2].toLowerCase() === 'x',
+      title,
+      checked: match[1].toLowerCase() === 'x',
       lineIndex,
     }];
   });
