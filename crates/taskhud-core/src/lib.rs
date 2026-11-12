@@ -15,29 +15,29 @@ pub use proposals::{ProposalStatus, ProposalStore, TaskChange, TaskProposal};
 
 #[derive(Debug, Error)]
 pub enum TodoError {
-    #[error("impossible de lire {path}: {source}")]
+    #[error("cannot read {path}: {source}")]
     Read {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("impossible d'écrire {path}: {source}")]
+    #[error("cannot write {path}: {source}")]
     Write {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("la tâche {0} n'existe pas")]
+    #[error("task {0} does not exist")]
     TaskNotFound(String),
-    #[error("le fichier a changé depuis la proposition (attendu {expected}, obtenu {actual})")]
+    #[error("the file changed since the proposal (expected {expected}, got {actual})")]
     Conflict { expected: String, actual: String },
-    #[error("le chemin doit viser un fichier TODO.md")]
+    #[error("the path must point to a TODO.md file")]
     InvalidTodoPath,
-    #[error("le projet {0} n'existe pas")]
+    #[error("project {0} does not exist")]
     ProjectNotFound(String),
-    #[error("la proposition {0} n'existe pas")]
+    #[error("proposal {0} does not exist")]
     ProposalNotFound(String),
-    #[error("configuration invalide {path}: {message}")]
+    #[error("invalid configuration {path}: {message}")]
     InvalidConfig { path: PathBuf, message: String },
-    #[error("proposition invalide : {0}")]
+    #[error("invalid proposal: {0}")]
     InvalidProposal(String),
 }
 
@@ -146,7 +146,7 @@ impl TodoDocument {
     pub fn apply_changes(&self, changes: &[TaskChange]) -> Result<String, TodoError> {
         if changes.is_empty() {
             return Err(TodoError::InvalidProposal(
-                "une proposition doit contenir au moins un changement".to_owned(),
+                "a proposal must contain at least one change".to_owned(),
             ));
         }
 
@@ -179,7 +179,7 @@ impl TodoDocument {
                     let title = title.trim();
                     if title.is_empty() {
                         return Err(TodoError::InvalidProposal(
-                            "une tâche ajoutée doit avoir un titre".to_owned(),
+                            "an added task must have a title".to_owned(),
                         ));
                     }
                     if let Some(task_id) = after_task_id {
@@ -188,8 +188,7 @@ impl TodoDocument {
                             .ok_or_else(|| TodoError::TaskNotFound(task_id.clone()))?;
                         if deletes.contains(&task.line_index) {
                             return Err(TodoError::InvalidProposal(
-                                "une tâche ne peut pas être ajoutée après une tâche supprimée"
-                                    .to_owned(),
+                                "a task cannot be added after a deleted task".to_owned(),
                             ));
                         }
                         additions_after.push((task.line_index, format!("- [ ] {title}")));
@@ -207,7 +206,7 @@ impl TodoDocument {
                         .ok_or_else(|| TodoError::TaskNotFound(task_id.clone()))?;
                     if title.is_none() && checked.is_none() {
                         return Err(TodoError::InvalidProposal(format!(
-                            "la modification de {task_id} est vide"
+                            "the update of {task_id} is empty"
                         )));
                     }
                     if title
@@ -215,12 +214,12 @@ impl TodoDocument {
                         .is_some_and(|value| value.trim().is_empty())
                     {
                         return Err(TodoError::InvalidProposal(format!(
-                            "le titre de {task_id} ne peut pas être vide"
+                            "the title of {task_id} cannot be empty"
                         )));
                     }
                     if !targeted_tasks.insert(task_id.clone()) {
                         return Err(TodoError::InvalidProposal(format!(
-                            "la tâche {task_id} est modifiée plusieurs fois"
+                            "task {task_id} is changed more than once"
                         )));
                     }
                     updates.push((
@@ -236,7 +235,7 @@ impl TodoDocument {
                     }
                     if !targeted_tasks.insert(task_id.clone()) {
                         return Err(TodoError::InvalidProposal(format!(
-                            "la tâche {task_id} est modifiée plusieurs fois"
+                            "task {task_id} is changed more than once"
                         )));
                     }
                 }
@@ -445,7 +444,7 @@ mod tests {
     fn temp_todo_path(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("l'horloge système doit être disponible")
+            .expect("the system clock must be available")
             .as_nanos();
         std::env::temp_dir().join(format!(
             "taskhud-core-{label}-{}-{nonce}-TODO.md",
@@ -455,13 +454,14 @@ mod tests {
 
     #[test]
     fn parse_tasks_preserves_ids_and_crlf_content() {
-        let content = "# Aujourd'hui\r\n\r\n- [ ] Écrire la démo\r\n- [x] Relire le contrat\r\n";
+        let content =
+            "# Today\r\n\r\n- [ ] Write the demo — draft\r\n- [x] Review the contract\r\n";
         let document = TodoDocument::from_content("TODO.md", content.to_owned()).unwrap();
         let snapshot = document.snapshot();
 
         assert_eq!(snapshot.tasks.len(), 2);
         assert_eq!(snapshot.tasks[0].id, "task-2");
-        assert_eq!(snapshot.tasks[0].title, "Écrire la démo");
+        assert_eq!(snapshot.tasks[0].title, "Write the demo — draft");
         assert!(!snapshot.tasks[0].checked);
         assert_eq!(snapshot.tasks[1].id, "task-3");
         assert!(snapshot.tasks[1].checked);
@@ -470,16 +470,16 @@ mod tests {
 
     #[test]
     fn toggle_task_changes_only_the_checkbox() {
-        let content = "- [ ] Première\n- [x] Deuxième\n";
+        let content = "- [ ] First\n- [x] Second\n";
         let document = TodoDocument::from_content("TODO.md", content.to_owned()).unwrap();
 
         assert_eq!(
             document.toggle_task("task-0").unwrap(),
-            "- [x] Première\n- [x] Deuxième\n"
+            "- [x] First\n- [x] Second\n"
         );
         assert_eq!(
             document.toggle_task("task-1").unwrap(),
-            "- [ ] Première\n- [ ] Deuxième\n"
+            "- [ ] First\n- [ ] Second\n"
         );
         assert!(matches!(
             document.toggle_task("task-99"),
@@ -489,38 +489,37 @@ mod tests {
 
     #[test]
     fn append_task_keeps_the_existing_newline_style() {
-        let document =
-            TodoDocument::from_content("TODO.md", "- [ ] Départ\r\n".to_owned()).unwrap();
+        let document = TodoDocument::from_content("TODO.md", "- [ ] Start\r\n".to_owned()).unwrap();
         assert_eq!(
-            document.append_task("  Nouvelle tâche  ").unwrap(),
-            "- [ ] Départ\r\n- [ ] Nouvelle tâche\r\n"
+            document.append_task("  New task  ").unwrap(),
+            "- [ ] Start\r\n- [ ] New task\r\n"
         );
     }
 
     #[test]
     fn save_if_unchanged_writes_and_rejects_stale_versions() {
         let path = temp_todo_path("save");
-        let initial = "- [ ] Départ\n";
+        let initial = "- [ ] Start\n";
         fs::write(&path, initial).unwrap();
 
         let document = TodoDocument::load(&path).unwrap();
         let saved =
-            TodoDocument::save_if_unchanged(&path, &document.snapshot().version, "- [x] Départ\n")
+            TodoDocument::save_if_unchanged(&path, &document.snapshot().version, "- [x] Start\n")
                 .unwrap();
-        assert_eq!(fs::read_to_string(&path).unwrap(), "- [x] Départ\n");
-        assert_eq!(saved.snapshot().tasks[0].checked, true);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "- [x] Start\n");
+        assert!(saved.snapshot().tasks[0].checked);
 
-        fs::write(&path, "- [ ] Modification externe\n").unwrap();
+        fs::write(&path, "- [ ] External change\n").unwrap();
         let error = TodoDocument::save_if_unchanged(
             &path,
             &saved.snapshot().version,
-            "- [x] Écrasement interdit\n",
+            "- [x] Overwrite forbidden\n",
         )
         .unwrap_err();
         assert!(matches!(error, TodoError::Conflict { .. }));
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "- [ ] Modification externe\n"
+            "- [ ] External change\n"
         );
 
         let _ = fs::remove_file(path);
@@ -546,7 +545,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let mut store = ProposalStore::open(&root).unwrap();
         let changes = vec![TaskChange::Add {
-            title: "Ajouter une vérification".to_owned(),
+            title: "Add a check".to_owned(),
             after_task_id: None,
         }];
 
@@ -554,7 +553,7 @@ mod tests {
             .add(
                 "demo".to_owned(),
                 "version-1".to_owned(),
-                "Audit terminé".to_owned(),
+                "Audit finished".to_owned(),
                 changes.clone(),
             )
             .unwrap();
@@ -562,7 +561,7 @@ mod tests {
             .add(
                 "demo".to_owned(),
                 "version-1".to_owned(),
-                "Audit terminé".to_owned(),
+                "Audit finished".to_owned(),
                 changes,
             )
             .unwrap();
@@ -576,26 +575,26 @@ mod tests {
 
     #[test]
     fn apply_changes_updates_deletes_and_adds_tasks_without_rewriting_other_lines() {
-        let content = "# Révisions\n\n- [ ] Lire le cours\n- [x] Faire un exercice\n";
+        let content = "# Revision\n\n- [ ] Read the lesson\n- [x] Do an exercise\n";
         let document = TodoDocument::from_content("TODO.md", content.to_owned()).unwrap();
         let changes = vec![
             TaskChange::Update {
                 task_id: "task-2".to_owned(),
-                title: Some("Relire le cours".to_owned()),
+                title: Some("Reread the lesson".to_owned()),
                 checked: Some(true),
             },
             TaskChange::Delete {
                 task_id: "task-3".to_owned(),
             },
             TaskChange::Add {
-                title: "Faire une fiche".to_owned(),
+                title: "Make a summary sheet".to_owned(),
                 after_task_id: Some("task-2".to_owned()),
             },
         ];
 
         assert_eq!(
             document.apply_changes(&changes).unwrap(),
-            "# Révisions\n\n- [x] Relire le cours\n- [ ] Faire une fiche\n"
+            "# Revision\n\n- [x] Reread the lesson\n- [ ] Make a summary sheet\n"
         );
     }
 
@@ -615,9 +614,9 @@ mod tests {
             .add(
                 "demo".to_owned(),
                 "version-1".to_owned(),
-                "Réviser".to_owned(),
+                "Revise".to_owned(),
                 vec![TaskChange::Add {
-                    title: "Faire une fiche".to_owned(),
+                    title: "Make a summary sheet".to_owned(),
                     after_task_id: None,
                 }],
             )

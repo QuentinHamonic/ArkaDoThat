@@ -51,12 +51,12 @@ export function applyProposal(markdown: string, proposal: Proposal): string {
   if (proposal.operation === 'add') return appendTask(markdown, proposal.after ?? proposal.title);
 
   if (!proposal.taskId || proposal.before === undefined || proposal.after === undefined) {
-    throw new Error('La proposition est incomplète.');
+    throw new Error('The proposal is incomplete.');
   }
 
   const task = parseTodo(markdown).find(candidate => candidate.id === proposal.taskId);
   if (!task || task.title !== proposal.before) {
-    throw new Error('Le fichier a changé depuis la proposition.');
+    throw new Error('The file changed since the proposal.');
   }
 
   const lines = markdown.split(/\r?\n/);

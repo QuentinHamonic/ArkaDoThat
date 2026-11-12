@@ -59,7 +59,7 @@ fn resolve_project_root(
 
     let root = PathBuf::from(root.trim());
     if !root.is_dir() {
-        return Err("Le dossier du projet n'existe pas.".to_owned());
+        return Err("The project folder does not exist.".to_owned());
     }
     Ok(root)
 }
@@ -93,7 +93,7 @@ fn list_projects() -> Result<ProjectRegistry, String> {
 fn create_project(name: String, root: String) -> Result<Project, String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err("Le nom du projet ne peut pas être vide.".to_owned());
+        return Err("The project name cannot be empty.".to_owned());
     }
 
     let mut registry = load_project_registry()?;
@@ -102,7 +102,7 @@ fn create_project(name: String, root: String) -> Result<Project, String> {
         .iter()
         .any(|project| project.name.eq_ignore_ascii_case(name))
     {
-        return Err("Un projet porte déjà ce nom.".to_owned());
+        return Err("A project with this name already exists.".to_owned());
     }
 
     let timestamp = SystemTime::now()
@@ -113,12 +113,12 @@ fn create_project(name: String, root: String) -> Result<Project, String> {
     let root = resolve_project_root(root.trim(), &project_id, &projects_config_path())?;
 
     fs::create_dir_all(&root)
-        .map_err(|error| format!("Impossible de préparer {}: {error}", root.display()))?;
+        .map_err(|error| format!("Cannot prepare {}: {error}", root.display()))?;
 
     let todo_path = root.join("TODO.md");
     if !todo_path.exists() {
-        fs::write(&todo_path, format!("# {name}\n\n## À faire\n\n"))
-            .map_err(|error| format!("Impossible de créer {}: {error}", todo_path.display()))?;
+        fs::write(&todo_path, format!("# {name}\n\n## To do\n\n"))
+            .map_err(|error| format!("Cannot create {}: {error}", todo_path.display()))?;
     }
 
     let project = Project {
@@ -152,7 +152,7 @@ fn set_active_project(project_id: String) -> Result<Project, String> {
 fn proposal_store_for(path: &Path) -> Result<ProposalStore, String> {
     let root = path
         .parent()
-        .ok_or_else(|| "le fichier TODO.md n'a pas de dossier parent".to_owned())?;
+        .ok_or_else(|| "the TODO.md file has no parent folder".to_owned())?;
     ProposalStore::open(root).map_err(command_error)
 }
 
@@ -168,7 +168,7 @@ fn accept_proposal(path: String, proposal_id: String) -> Result<TodoSnapshot, St
     let mut store = proposal_store_for(&path)?;
     let proposal = store.get(&proposal_id).map_err(command_error)?.clone();
     if proposal.status != ProposalStatus::Pending {
-        return Err("Cette proposition a déjà reçu une décision.".to_owned());
+        return Err("This proposal has already been decided.".to_owned());
     }
 
     let document = TodoDocument::load(&path).map_err(command_error)?;
@@ -199,7 +199,7 @@ fn reject_proposal(
     let mut store = proposal_store_for(&path)?;
     let proposal = store.get(&proposal_id).map_err(command_error)?.clone();
     if proposal.status != ProposalStatus::Pending {
-        return Err("Cette proposition a déjà reçu une décision.".to_owned());
+        return Err("This proposal has already been decided.".to_owned());
     }
     store
         .set_status(&proposal.id, ProposalStatus::Rejected)
@@ -273,7 +273,7 @@ mod tests {
         let todo = root.join("TODO.md");
         fs::write(
             &todo,
-            "# Révisions\n\n- [ ] Relire le cours\n- [ ] Faire une fiche\n- [x] Ancien exercice\n",
+            "# Revision\n\n- [ ] Reread the lesson\n- [ ] Make a summary sheet\n- [x] Old exercise\n",
         )
         .unwrap();
         let snapshot = TodoDocument::load(&todo).unwrap().snapshot();
@@ -282,15 +282,15 @@ mod tests {
             .add(
                 "maths".to_owned(),
                 snapshot.version.clone(),
-                "Réviser les quatre opérations".to_owned(),
+                "Revise the four operations".to_owned(),
                 vec![
                     TaskChange::Add {
-                        title: "Faire un exercice de synthèse".to_owned(),
+                        title: "Do a review exercise".to_owned(),
                         after_task_id: None,
                     },
                     TaskChange::Update {
                         task_id: "task-2".to_owned(),
-                        title: Some("Relire le cours (version revue)".to_owned()),
+                        title: Some("Reread the lesson (revised)".to_owned()),
                         checked: None,
                     },
                     TaskChange::Update {
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(saved.tasks.len(), 3);
         assert_eq!(
             fs::read_to_string(&todo).unwrap(),
-            "# Révisions\n\n- [ ] Relire le cours (version revue)\n- [x] Faire une fiche\n- [ ] Faire un exercice de synthèse\n"
+            "# Revision\n\n- [ ] Reread the lesson (revised)\n- [x] Make a summary sheet\n- [ ] Do a review exercise\n"
         );
         assert_eq!(
             ProposalStore::open(&root)
@@ -327,7 +327,7 @@ mod tests {
     fn rejecting_a_proposal_does_not_change_todo() {
         let root = temp_project("reject");
         let todo = root.join("TODO.md");
-        let original = "- [ ] Relire le cours\n";
+        let original = "- [ ] Reread the lesson\n";
         fs::write(&todo, original).unwrap();
         let snapshot = TodoDocument::load(&todo).unwrap().snapshot();
         let mut store = ProposalStore::open(&root).unwrap();
@@ -335,9 +335,9 @@ mod tests {
             .add(
                 "maths".to_owned(),
                 snapshot.version,
-                "Ignorer cet ajout".to_owned(),
+                "Ignore this addition".to_owned(),
                 vec![TaskChange::Add {
-                    title: "Ne pas ajouter".to_owned(),
+                    title: "Do not add".to_owned(),
                     after_task_id: None,
                 }],
             )
@@ -362,26 +362,26 @@ mod tests {
     fn accepting_a_stale_proposal_does_not_overwrite_external_changes() {
         let root = temp_project("stale");
         let todo = root.join("TODO.md");
-        fs::write(&todo, "- [ ] Relire le cours\n").unwrap();
+        fs::write(&todo, "- [ ] Reread the lesson\n").unwrap();
         let snapshot = TodoDocument::load(&todo).unwrap().snapshot();
         let mut store = ProposalStore::open(&root).unwrap();
         let proposal = store
             .add(
                 "maths".to_owned(),
                 snapshot.version,
-                "Ajouter un exercice".to_owned(),
+                "Add an exercise".to_owned(),
                 vec![TaskChange::Add {
-                    title: "Faire un exercice".to_owned(),
+                    title: "Do an exercise".to_owned(),
                     after_task_id: None,
                 }],
             )
             .unwrap();
 
-        let external_content = "- [ ] Relire le cours\n- [ ] Modification externe\n";
+        let external_content = "- [ ] Reread the lesson\n- [ ] External change\n";
         fs::write(&todo, external_content).unwrap();
         let error = accept_proposal(todo.display().to_string(), proposal.id.clone()).unwrap_err();
 
-        assert!(error.contains("le fichier a changé"));
+        assert!(error.contains("the file changed"));
         assert_eq!(fs::read_to_string(&todo).unwrap(), external_content);
         assert_eq!(
             ProposalStore::open(&root)

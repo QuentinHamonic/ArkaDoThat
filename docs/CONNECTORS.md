@@ -1,16 +1,16 @@
-# Connecteurs de fonctions TaskHUD
+# TaskHUD function connectors
 
-Le cœur TaskHUD expose des opérations métier bornées. Un connecteur peut les appeler sans recevoir un accès général au système de fichiers.
+The TaskHUD core exposes bounded domain operations. A connector can call them without getting general access to the file system.
 
-## Façade JSONL locale
+## Local JSONL facade
 
-`taskhud-functions` lit une fonction par ligne sur `stdin` et écrit une réponse JSON par ligne sur `stdout` :
+`taskhud-functions` reads one function call per line on `stdin` and writes one JSON response per line on `stdout`:
 
 ```json
 {"function":"get_tasks","arguments":{"projectId":"maths"}}
 ```
 
-Les fonctions disponibles sont :
+The available functions are:
 
 - `list_projects`
 - `get_active_project`
@@ -21,12 +21,12 @@ Les fonctions disponibles sont :
 - `list_proposals`
 - `get_proposal`
 
-`get_tasks` renvoie seulement le chemin, la version et les tâches. Le contenu complet demande un appel explicite à `get_tasks_with_content` afin de limiter le contexte.
+`get_tasks` only returns the path, the version and the tasks. The full content requires an explicit call to `get_tasks_with_content`, to keep the context small.
 
-Le connecteur ne peut pas appliquer une proposition. L'application desktop reste responsable de l'afficher, puis d'enregistrer la décision humaine avec contrôle de version.
+The connector cannot apply a proposal. The desktop application stays responsible for showing it, then recording the human decision with a version check.
 
-`propose_tasks` est le chemin court pour une IA qui ajoute plusieurs tâches : il accepte un nom ou un identifiant de projet, utilise le projet actif si le projet est omis, lit la version courante et crée une seule proposition. `propose_task_changes` reste disponible pour les modifications et suppressions ciblées.
+`propose_tasks` is the short path for an AI that adds several tasks: it accepts a project name or identifier, uses the active project when the project is omitted, reads the current version and creates a single proposal. `propose_task_changes` stays available for targeted updates and deletions.
 
 ## MCP
 
-`taskhud-mcp` expose le même domaine via le protocole MCP `stdio`, pour les hôtes qui savent découvrir et appeler des outils MCP. Voir [MCP.md](MCP.md).
+`taskhud-mcp` exposes the same domain over the MCP `stdio` protocol, for hosts that can discover and call MCP tools. See [MCP.md](MCP.md).

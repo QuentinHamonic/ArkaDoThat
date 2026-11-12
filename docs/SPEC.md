@@ -1,64 +1,72 @@
-# Spécification MVP TaskHUD
+# TaskHUD MVP specification
 
-## Périmètre
+## Scope
 
-Cette version valide un parcours local et déterministe autour d’un `TODO.md`. Elle ne promet pas encore la fenêtre native Tauri, la détection VS Code, la surveillance OS des fichiers ni le support multi-plateforme.
+This version validates a local, deterministic journey around a `TODO.md`. It does not yet promise the native Tauri window, VS Code detection, OS-level file watching or cross-platform support.
 
-## Exigences et critères d’acceptation
+## Requirements and acceptance criteria
 
-### T1 — Lire une liste Markdown
+### T1 — Read a Markdown list
 
-À l’ouverture, l’utilisateur voit une liste de tâches issue d’un texte `TODO.md` contenant des lignes `- [ ]` et `- [x]`. Les tâches terminées sont distinguées autrement que par la couleur seule.
+On opening, the user sees a task list built from a `TODO.md` text containing `- [ ]` and `- [x]` lines. Completed tasks are distinguished by more than color alone.
 
-**Échec :** une ligne valide disparaît, l’état coché est inversé ou une tâche est présentée comme modifiée alors qu’elle ne l’est pas.
+**Failure:** a valid line disappears, the checked state is inverted, or a task is shown as changed when it is not.
 
-### T2 — Changer l’état d’une tâche
+### T2 — Change a task's state
 
-Quand l’utilisateur active la case d’une tâche, son état visible change immédiatement et le texte Markdown associé est mis à jour en mémoire.
+When the user activates a task's checkbox, its visible state changes immediately and the matching Markdown text is updated in memory.
 
-**Échec :** seule l’apparence change, ou une autre tâche est modifiée.
+**Failure:** only the appearance changes, or another task is changed.
 
-### T3 — Ajouter une tâche
+### T3 — Add a task
 
-Depuis le champ principal, l’utilisateur peut saisir une tâche et l’ajouter avec Entrée ou le bouton d’ajout. Le champ est vidé après succès et la nouvelle tâche apparaît non terminée.
+From the main field, the user can type a task and add it with Enter or the add button. The field is cleared after success and the new task appears not done.
 
-**Échec :** une entrée vide est ajoutée, l’action exige une syntaxe Markdown ou le focus clavier est perdu sans raison.
+**Failure:** an empty entry is added, the action requires Markdown syntax, or keyboard focus is lost for no reason.
 
-### T4 — Proposer puis décider
+### T4 — Propose, then decide
 
-Une proposition d’agent affiche clairement son type, son texte avant/après et les actions `Accepter` et `Refuser`. Accepter modifie la liste ; refuser laisse la liste inchangée. Une proposition ne doit pas être appliquée silencieusement.
+An agent proposal clearly shows its type, its before/after text and the `Accept` and `Reject` actions. Accepting changes the list; rejecting leaves the list unchanged. A proposal must never be applied silently.
 
-**Échec :** le diff est absent, l’état change avant l’acceptation ou les deux décisions ont le même effet.
+**Failure:** the diff is missing, the state changes before acceptance, or both decisions have the same effect.
 
-### T5 — Source et état local
+### T5 — Source and local state
 
-L’interface indique le projet ou fichier actuellement affiché et distingue l’état synchronisé de l’état modifié localement. Un fichier choisi depuis l’interface peut être chargé quand l’API de fichier du navigateur est disponible ; le mode de démonstration reste explicite sinon.
+The interface shows which project or file is displayed and distinguishes the synchronized state from the locally modified state. A file chosen from the interface can be loaded when the browser file API is available; otherwise the demo mode stays explicit.
 
-**Échec :** l’utilisateur ne peut pas savoir quel contenu il regarde ou une capacité non disponible est présentée comme persistée.
+**Failure:** the user cannot tell which content they are looking at, or an unavailable capability is presented as persisted.
 
-### T6 — Interface compacte et accessible
+### T6 — Compact and accessible interface
 
-Le parcours principal tient dans une petite fenêtre, fonctionne à 320 px de large sans défilement horizontal, possède des contrôles clavier natifs, des libellés accessibles et un focus visible. Les options secondaires ne doivent pas encombrer la liste principale.
+The main journey fits in a small window, works at 320 px wide without horizontal scrolling, and has native keyboard controls, accessible labels and a visible focus. Secondary options must not clutter the main list.
 
-**Échec :** contrôle inaccessible au clavier, action iconographique sans nom, texte coupé sans alternative ou débordement horizontal.
+**Failure:** a control unreachable by keyboard, an icon action without a name, text cut off with no alternative, or horizontal overflow.
 
-## Vérifications attendues
+## Expected checks
 
-- `npm run check` doit réussir quand les dépendances frontend sont installées.
-- Le parcours T1 à T4 doit être exécuté dans un navigateur headless sur le serveur local.
-- Le rendu doit être inspecté à 320 px et 768 px de large.
-- Les limites liées à Tauri, Rust, VS Code, Wayland, macOS et Linux doivent rester signalées comme non vérifiées tant qu’elles ne sont pas exécutées sur leurs environnements.
+- `npm run check` must pass when the frontend dependencies are installed.
+- The T1 to T4 journey must run in a headless browser against the local server.
+- The rendering must be inspected at 320 px and 768 px wide.
+- Limits tied to Tauri, Rust, VS Code, Wayland, macOS and Linux must stay reported as unverified until they are run on their environments.
 
-## Compléments de la tranche TODO/connecteurs
+## TODO/connectors slice additions
 
-### T7 — Connecteurs bornés
+### T7 — Bounded connectors
 
-MCP et les appels de fonctions JSONL peuvent lire le projet, demander explicitement le contenu complet et soumettre une proposition versionnée. Ils ne peuvent pas appliquer directement une modification au `TODO.md`. Une proposition en attente est visible dans l'application et sa décision humaine est persistée.
+MCP and JSONL function calls can read the project, explicitly request the full content and submit a versioned proposal. They cannot apply a change to `TODO.md` directly. A pending proposal is visible in the application and its human decision is persisted.
 
-**Échec :** un connecteur écrit directement dans le fichier, renvoie inutilement tout le contenu par défaut ou masque une proposition déjà décidée.
+**Failure:** a connector writes directly to the file, returns the full content by default for no reason, or hides a proposal that has already been decided.
 
-### T8 — Charge et tailles d'affichage
+### T8 — Load and display sizes
 
-La liste reste utilisable avec plusieurs centaines de tâches. À 320, 768, 1024 et 1440 px de large, elle ne crée pas de défilement horizontal ; le défilement vertical est contenu dans la zone de liste.
+The list stays usable with several hundred tasks. At 320, 768, 1024 and 1440 px wide, it creates no horizontal scrolling; vertical scrolling is contained in the list area.
 
-**Vérification réalisée :** parcours navigateur sur un `TODO.md` de 600 tâches, plus toggle, ajout avec Entrée et acceptation d'une proposition.
+**Check performed:** browser journey on a `TODO.md` with 600 tasks, plus toggle, add with Enter and acceptance of a proposal.
+
+## Interface language slice
+
+### T9 — Choose the interface language
+
+The interface is in English by default. From the Settings page, the user can switch the interface between English and French. The change applies immediately to every visible text and accessible label, including the header title, without reloading or losing the current list. The choice survives a reload, and the document language (`<html lang>`) matches the displayed language. Task titles and file content are never translated.
+
+**Failure:** some interface text or accessible label stays in the previous language, the choice is lost after a reload, `<html lang>` does not match the displayed language, the current tasks or unsaved changes are lost when switching, or unavailable local storage breaks the interface instead of keeping the choice for the current session only.

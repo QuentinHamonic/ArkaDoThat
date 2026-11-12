@@ -23,13 +23,13 @@ cargo check --workspace
 npx tauri dev
 ```
 
-Pour générer l'application Windows et ses installateurs :
+To build the Windows application and its installers:
 
 ```powershell
 .\build-desktop.cmd
 ```
 
-Le binaire brut est généré dans `target\release\taskhud.exe`. Les installateurs Tauri sont dans `target\release\bundle\` (notamment les formats `.exe` et `.msi` lorsque les outils Windows correspondants sont disponibles). Cette commande ne publie rien et ne nécessite aucun compte.
+The raw binary is written to `target\release\taskhud.exe`. The Tauri installers are in `target\release\bundle\` (including the `.exe` and `.msi` formats when the matching Windows tools are available). This command publishes nothing and needs no account.
 
 The MCP server can be run independently:
 
@@ -46,6 +46,10 @@ cargo run -p taskhud-functions -- --config C:\Users\you\AppData\Local\TaskHUD\co
 ```
 
 See [docs/CONNECTORS.md](docs/CONNECTORS.md) for the compact function contract.
+
+## Interface language
+
+The interface is in English by default and is also available in French. Choose the language under **Settings → Language**; the choice applies immediately and is kept in the app's local storage (`taskhud.language`). All interface strings live in `src/lib/i18n.ts`; adding a language means adding one dictionary there.
 
 ## QA
 

@@ -4,6 +4,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
   import { appendTask, parseTodo, toggleTask } from './lib/todo';
+  import { dictionaries, languages, loadLanguage, saveLanguage, type Language, type Messages } from './lib/i18n';
 
   type TodoTask = {
     id: string;
@@ -47,11 +48,14 @@
 
   type View = 'tasks' | 'task-details' | 'settings' | 'projects';
   type ResizeDirection = 'NorthWest' | 'NorthEast' | 'SouthWest' | 'SouthEast';
+  // A notice is rendered with the current dictionary, so it follows a language change.
+  type Notice = (m: Messages) => string;
 
   let markdown = '';
   let newTask = '';
   let fileName = 'TODO.md';
-  let notice = 'Aucun projet ouvert.';
+  let language: Language = loadLanguage();
+  let notice: Notice = m => m.noProjectOpen;
   let dirty = false;
   let filePath: string | null = null;
   let documentVersion = '';
@@ -71,7 +75,7 @@
   let selectedTaskId: string | null = null;
   let selectedNoteKey: string | null = null;
   let detailNote = '';
-  // v2 : les anciennes notes « task-<ligne> » ne disent pas à quel fichier elles appartiennent ; elles restent sous l'ancienne clé.
+  // v2: old "task-<line>" notes do not say which file they belong to; they stay under the old key.
   const taskNotesStorageKey = 'taskhud.task-notes.v2';
   let taskNotes: Record<string, string> = {};
   let projects: Project[] = [];
@@ -82,10 +86,13 @@
   let proposalCollapsed = false;
   let proposalAnimationId = '';
   let proposalAnchor: HTMLElement;
+  $: t = dictionaries[language];
+  $: noticeText = notice(t);
+  $: if (typeof document !== 'undefined') document.documentElement.lang = language;
   $: tasks = parseTodo(markdown);
   $: activeProject = projects.find(project => project.id === activeProjectId) ?? null;
   $: selectedTask = tasks.find(task => task.id === selectedTaskId) ?? null;
-  $: projectName = activeProject?.name ?? (filePath ? fileName.replace(/\.[^/.]+$/, '') : 'Aucun projet');
+  $: projectName = activeProject?.name ?? (filePath ? fileName.replace(/\.[^/.]+$/, '') : t.noProject);
   $: activeProposal = isDesktop ? proposals[0] ?? null : null;
   $: proposalIsStale = Boolean(isDesktop && activeProposal && activeProposal.baseVersion !== documentVersion);
   $: proposalBlocked = Boolean(isDesktop && activeProposal && (dirty || proposalIsStale));
@@ -93,7 +100,7 @@
   onMount(() => {
     isDesktop = '__TAURI_INTERNALS__' in window;
     document.documentElement.classList.toggle('desktop-runtime', isDesktop);
-    notice = isDesktop ? 'Aucun projet ouvert.' : 'Aucun fichier ouvert.';
+    notice = isDesktop ? m => m.noProjectOpen : m => m.noFileOpen;
     try {
       taskNotes = JSON.parse(localStorage.getItem(taskNotesStorageKey) ?? '{}') as Record<string, string>;
     } catch {
@@ -119,7 +126,7 @@
       if (event.button !== 0) return;
       event.preventDefault();
       void currentWindow.startDragging().catch(error => {
-        notice = error instanceof Error ? error.message : String(error);
+        notice = errorNotice(error);
       });
     };
     titlebarDrag?.addEventListener('mousedown', handleDrag);
@@ -137,7 +144,7 @@
     event.preventDefault();
     event.stopPropagation();
     void getCurrentWindow().startResizeDragging(direction).catch(error => {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     });
   }
 
@@ -159,22 +166,22 @@
 
   function handleToggle(taskId: string) {
     markdown = toggleTask(markdown, taskId);
-    markDirty('Modification enregistrée.');
+    markDirty(m => m.changeSaved);
   }
 
   function handleAdd() {
     if (!newTask.trim()) return;
     if (isDesktop && !filePath) {
-      notice = 'Aucun projet ouvert.';
+      notice = m => m.noProjectOpen;
       return;
     }
     markdown = appendTask(markdown, newTask);
     newTask = '';
-    markDirty('Tâche ajoutée.');
+    markDirty(m => m.taskAdded);
     newTaskInput?.focus();
   }
 
-  // Une note est rattachée au fichier (chemin en desktop, nom en web) et au titre de la tâche, jamais à son numéro de ligne.
+  // A note is tied to the file (path on desktop, name on the web) and to the task title, never to its line number.
   function taskNoteKey(title: string) {
     return JSON.stringify([filePath ?? `web:${fileName}`, title]);
   }
@@ -217,7 +224,7 @@
       const active = registry.projects.find(project => project.id === registry.activeProjectId);
       if (active) await openProject(active, false);
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
@@ -230,9 +237,9 @@
       await refreshProposals();
       projectMenuOpen = false;
       view = 'tasks';
-      if (showNotice) notice = `Projet « ${project.name} » ouvert.`;
+      if (showNotice) notice = m => m.projectOpened(project.name);
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
@@ -260,18 +267,18 @@
       activeProjectId = project.id;
       await openProject(project);
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
-  function markDirty(message: string) {
+  function markDirty(message: Notice) {
     dirty = true;
     notice = isDesktop && filePath ? message : persistenceNotice();
     if (isDesktop && filePath) scheduleSave();
   }
 
-  function persistenceNotice() {
-    return isDesktop ? 'Aucun projet ouvert.' : 'Aperçu web.';
+  function persistenceNotice(): Notice {
+    return isDesktop ? m => m.noProjectOpen : m => m.webPreview;
   }
 
   function scheduleSave() {
@@ -286,13 +293,11 @@
     if (!activeProposal) return;
 
     if (!isDesktop || !filePath) {
-      notice = 'Action indisponible ici.';
+      notice = m => m.actionUnavailable;
       return;
     }
     if (proposalBlocked) {
-      notice = dirty
-        ? 'Enregistrement en cours.'
-        : 'Cette proposition est basée sur une version ancienne. Rechargez le fichier.';
+      notice = dirty ? m => m.saving : m => m.proposalOutdated;
       return;
     }
 
@@ -303,9 +308,9 @@
       });
       applySnapshot(snapshot);
       await refreshProposals();
-      notice = 'Proposition acceptée et enregistrée.';
+      notice = m => m.proposalAccepted;
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
       await refreshProposals();
     }
   }
@@ -315,22 +320,19 @@
     if (!proposalCollapsed) {
       requestAnimationFrame(() => proposalAnchor?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     }
-    notice = proposalCollapsed ? 'Proposition masquée.' : 'Proposition affichée.';
+    notice = proposalCollapsed ? m => m.proposalHidden : m => m.proposalShown;
   }
 
-  function proposalTaskTitle(change: AgentChange) {
+  function proposalTaskTitle(change: AgentChange, m: Messages) {
     if (change.operation === 'add') return change.title;
     const task = tasks.find(candidate => candidate.id === change.taskId);
-    if (change.operation === 'delete') return `Supprimer : ${task?.title ?? change.taskId}`;
-    return change.title ?? task?.title ?? `Modifier : ${change.taskId}`;
+    if (change.operation === 'delete') return m.deletePrefix(task?.title ?? change.taskId);
+    return change.title ?? task?.title ?? m.updatePrefix(change.taskId);
   }
 
-  function proposalTaskLabel(change: AgentChange) {
-    if (change.operation === 'add') return 'Nouvelle tâche';
-    if (change.operation === 'delete') return 'Suppression';
-    return change.checked !== null && change.checked !== undefined && change.title == null
-      ? 'Tâche à cocher'
-      : 'Modification';
+  function proposalTaskLabel(change: AgentChange, m: Messages) {
+    const kind = proposalTaskKind(change);
+    return kind === 'add' ? m.kindAdd : kind === 'delete' ? m.kindDelete : kind === 'check' ? m.kindCheck : m.kindUpdate;
   }
 
   function proposalTaskKind(change: AgentChange) {
@@ -348,7 +350,7 @@
     if (!activeProposal) return;
 
     if (!isDesktop || !filePath) {
-      notice = 'Action indisponible ici.';
+      notice = m => m.actionUnavailable;
       return;
     }
 
@@ -358,9 +360,9 @@
         proposalId: activeProposal.id,
       });
       await refreshProposals();
-      notice = 'Proposition refusée.';
+      notice = m => m.proposalRejected;
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
       await refreshProposals();
     }
   }
@@ -385,7 +387,7 @@
         }, 1400);
       }
     } catch (error) {
-      if (!activeProposal) notice = error instanceof Error ? error.message : String(error);
+      if (!activeProposal) notice = errorNotice(error);
     }
   }
 
@@ -414,16 +416,16 @@
       });
       const selectedPath = typeof selected === 'string' ? selected : selected?.[0];
       if (!selectedPath) {
-        notice = 'Aucun fichier sélectionné.';
+        notice = m => m.noFileSelected;
         return;
       }
 
       const snapshot = await invoke<TodoSnapshot>('read_todo', { path: selectedPath });
       applySnapshot(snapshot);
       await refreshProposals();
-      notice = 'Fichier ouvert.';
+      notice = m => m.fileOpened;
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
@@ -445,15 +447,15 @@
       if (markdown === contentToSave && documentVersion === versionToSave) {
         applySnapshot(snapshot);
         await refreshProposals();
-        notice = 'Enregistré.';
+        notice = m => m.saved;
       } else {
         documentVersion = snapshot.version;
         dirty = true;
-        notice = 'Modification suivante en cours d’enregistrement…';
+        notice = m => m.savingNext;
         scheduleSave();
       }
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
@@ -468,7 +470,7 @@
       }
       else await currentWindow.close();
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
   }
 
@@ -478,10 +480,20 @@
       const currentWindow = getCurrentWindow();
       await currentWindow.setAlwaysOnTop(!isAlwaysOnTop);
       await syncAlwaysOnTop(currentWindow);
-      notice = isAlwaysOnTop ? 'Fenêtre toujours au premier plan.' : 'Fenêtre libre.';
+      notice = isAlwaysOnTop ? m => m.alwaysOnTop : m => m.windowFree;
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorNotice(error);
     }
+  }
+
+  function setLanguage(next: Language) {
+    language = next;
+    saveLanguage(next);
+  }
+
+  function errorNotice(error: unknown): Notice {
+    const text = error instanceof Error ? error.message : String(error);
+    return () => text;
   }
 
   function fileNameFromPath(path: string) {
@@ -499,13 +511,13 @@
     proposals = [];
     fileName = file.name;
     dirty = false;
-    notice = 'Fichier ouvert.';
+    notice = m => m.fileOpened;
     input.value = '';
   }
 </script>
 
 <svelte:head>
-  <meta name="description" content="Un overlay local et discret pour les tâches d'un projet." />
+  <meta name="description" content={t.metaDescription} />
 </svelte:head>
 
 <main class="hud-shell" class:desktop-shell={isDesktop}>
@@ -516,75 +528,75 @@
     <div class="resize-handle resize-handle-se" aria-hidden="true" on:mousedown={(event) => beginResize('SouthEast', event)}></div>
   {/if}
   <header class="topbar">
-    <button class="menu-button" type="button" aria-label="Ouvrir le menu" aria-expanded={menuOpen} on:click={() => menuOpen = !menuOpen}>☰</button>
+    <button class="menu-button" type="button" aria-label={t.openMenu} aria-expanded={menuOpen} on:click={() => menuOpen = !menuOpen}>☰</button>
     <div bind:this={titlebarDrag} class="titlebar-drag">
       <div class="brand-lockup">
-        <h1>{view === 'settings' ? 'Paramètres' : view === 'projects' ? 'Projets' : view === 'task-details' ? 'Détails' : 'Tasks'}</h1>
+        <h1>{view === 'settings' ? t.titleSettings : view === 'projects' ? t.titleProjects : view === 'task-details' ? t.titleDetails : t.titleTasks}</h1>
       </div>
     </div>
     {#if isDesktop}
-      <div class="window-actions" aria-label="Contrôles de fenêtre">
-        <button class:active={isAlwaysOnTop} class="pin-button" type="button" aria-pressed={isAlwaysOnTop} aria-label={isAlwaysOnTop ? 'Désactiver le premier plan' : 'Activer le premier plan'} title={isAlwaysOnTop ? 'Toujours au premier plan : activé' : 'Toujours au premier plan : désactivé'} on:click={() => void toggleAlwaysOnTop()}>⌖</button>
-        <button class="window-button" type="button" aria-label="Réduire la fenêtre" title="Réduire" on:click={() => void windowAction('minimize')}>−</button>
-        <button class="window-button maximize-button" type="button" aria-label={isMaximized ? 'Restaurer la fenêtre' : 'Agrandir la fenêtre'} title={isMaximized ? 'Restaurer' : 'Agrandir'} on:click={() => void windowAction('toggle-maximize')}>
+      <div class="window-actions" aria-label={t.windowControls}>
+        <button class:active={isAlwaysOnTop} class="pin-button" type="button" aria-pressed={isAlwaysOnTop} aria-label={isAlwaysOnTop ? t.pinOn : t.pinOff} title={isAlwaysOnTop ? t.pinTitleOn : t.pinTitleOff} on:click={() => void toggleAlwaysOnTop()}>⌖</button>
+        <button class="window-button" type="button" aria-label={t.minimizeWindow} title={t.minimize} on:click={() => void windowAction('minimize')}>−</button>
+        <button class="window-button maximize-button" type="button" aria-label={isMaximized ? t.restoreWindow : t.maximizeWindow} title={isMaximized ? t.restore : t.maximize} on:click={() => void windowAction('toggle-maximize')}>
           <span aria-hidden="true">{isMaximized ? '❐' : '□'}</span>
         </button>
-        <button class="window-button close-button" type="button" aria-label="Fermer TaskHUD" title="Fermer" on:click={() => void windowAction('close')}>×</button>
+        <button class="window-button close-button" type="button" aria-label={t.closeApp} title={t.close} on:click={() => void windowAction('close')}>×</button>
       </div>
     {/if}
     <input bind:this={fileInput} class="visually-hidden" type="file" accept=".md,.markdown,text/markdown" on:change={loadFile} />
   </header>
 
   {#if menuOpen}
-    <nav class="app-menu" aria-label="Menu principal">
-      <button type="button" on:click={() => navigate('settings')}>Paramètres</button>
-      <button type="button" on:click={() => navigate('tasks')}>Tâches</button>
-      <button type="button" on:click={() => navigate('projects')}>Projets</button>
+    <nav class="app-menu" aria-label={t.mainMenu}>
+      <button type="button" on:click={() => navigate('settings')}>{t.menuSettings}</button>
+      <button type="button" on:click={() => navigate('tasks')}>{t.menuTasks}</button>
+      <button type="button" on:click={() => navigate('projects')}>{t.menuProjects}</button>
     </nav>
   {/if}
 
   {#if view === 'tasks'}
     <div class="project-picker-wrap">
-      <button class="project-select" type="button" aria-label={`Ouvrir le projet ${projectName}`} aria-expanded={projectMenuOpen} on:click={openFilePicker}>
+      <button class="project-select" type="button" aria-label={t.openProjectLabel(projectName)} aria-expanded={projectMenuOpen} on:click={openFilePicker}>
         <span>{projectName}</span>
         <span class="select-chevron" aria-hidden="true"></span>
       </button>
       {#if projectMenuOpen}
-        <div class="project-menu" aria-label="Projets enregistrés">
+        <div class="project-menu" aria-label={t.savedProjects}>
           {#each projects as project (project.id)}
             <button type="button" on:click={() => void openProject(project)}>
               <span>{project.name}</span>
               <small>{project.root}</small>
             </button>
           {/each}
-          {#if !projects.length}<p>Aucun projet enregistré.</p>{/if}
-          <button class="menu-action" type="button" on:click={beginCreateProject}>+ Nouveau projet</button>
-          <button class="menu-action" type="button" on:click={() => void openDesktopFile()}>Ouvrir un TODO.md</button>
+          {#if !projects.length}<p>{t.noSavedProject}</p>{/if}
+          <button class="menu-action" type="button" on:click={beginCreateProject}>{t.newProjectAction}</button>
+          <button class="menu-action" type="button" on:click={() => void openDesktopFile()}>{t.openTodoFile}</button>
         </div>
       {/if}
     </div>
 
     <section class="task-section" aria-labelledby="tasks-heading">
       <div class="section-heading">
-        <h2 id="tasks-heading">À faire</h2>
-        <span class="task-count" aria-label={`${tasks.length} tâche${tasks.length > 1 ? 's' : ''}`}>{tasks.length}</span>
+        <h2 id="tasks-heading">{t.todoHeading}</h2>
+        <span class="task-count" aria-label={t.taskCount(tasks.length)}>{tasks.length}</span>
       </div>
 
       <div class="task-stream">
       {#if isDesktop && !filePath}
         <div class="empty-project-state">
-          <p class="empty-state">Aucun projet ouvert.</p>
+          <p class="empty-state">{t.noProjectOpen}</p>
           <div class="empty-project-actions">
-            <button class="primary-button" type="button" on:click={beginCreateProject}>Créer un projet</button>
-            <button class="secondary-button" type="button" on:click={() => void openDesktopFile()}>Ouvrir un TODO.md</button>
+            <button class="primary-button" type="button" on:click={beginCreateProject}>{t.createProject}</button>
+            <button class="secondary-button" type="button" on:click={() => void openDesktopFile()}>{t.openTodoFile}</button>
           </div>
         </div>
       {:else if tasks.length || activeProposal}
-        <ul class="task-list" aria-label="Tâches du projet">
+        <ul class="task-list" aria-label={t.projectTasks}>
           {#each tasks as task (task.id)}
             <li class:completed={task.checked} class="task-row">
               <label class="task-check">
-                <input type="checkbox" checked={task.checked} aria-label={`Marquer « ${task.title} » comme ${task.checked ? 'non terminée' : 'terminée'}`} on:change={() => handleToggle(task.id)} />
+                <input type="checkbox" checked={task.checked} aria-label={t.markTask(task.title, task.checked)} on:change={() => handleToggle(task.id)} />
                 <span class="checkmark" aria-hidden="true"></span>
               </label>
               <button class="task-title" type="button" on:click={() => openTaskDetails(task.id)}>{task.title}</button>
@@ -592,13 +604,13 @@
           {/each}
 
           {#if activeProposal}
-            <li bind:this={proposalAnchor} class:proposal-pulse={proposalAnimationId === activeProposal.id} class="proposal-heading-row" aria-label="Proposition de l’agent">
+            <li bind:this={proposalAnchor} class:proposal-pulse={proposalAnimationId === activeProposal.id} class="proposal-heading-row" aria-label={t.agentProposal}>
               <div class="proposal-heading">
                 <div class="proposal-title">
-                  <strong id="proposal-heading">Proposition de l’agent</strong>
-                  <span class="proposal-count" aria-label={`${activeProposal.changes.length} tâche${activeProposal.changes.length > 1 ? 's' : ''} proposée${activeProposal.changes.length > 1 ? 's' : ''}`}>{activeProposal.changes.length}</span>
+                  <strong id="proposal-heading">{t.agentProposal}</strong>
+                  <span class="proposal-count" aria-label={t.proposedCount(activeProposal.changes.length)}>{activeProposal.changes.length}</span>
                 </div>
-                <button class="proposal-toggle" type="button" aria-expanded={!proposalCollapsed} on:click={toggleActiveProposal}>{proposalCollapsed ? 'Afficher' : 'Masquer'}</button>
+                <button class="proposal-toggle" type="button" aria-expanded={!proposalCollapsed} on:click={toggleActiveProposal}>{proposalCollapsed ? t.show : t.hide}</button>
               </div>
               {#if !proposalCollapsed}
                 <p class="proposal-reason">{activeProposal.reason}</p>
@@ -606,92 +618,102 @@
             </li>
             {#if !proposalCollapsed}
               {#each activeProposal.changes as change}
-                <li class={`task-row proposal-task-row proposal-${proposalTaskKind(change)}`} aria-label={`Proposition : ${proposalTaskLabel(change)} — ${proposalTaskTitle(change)}`}>
+                <li class={`task-row proposal-task-row proposal-${proposalTaskKind(change)}`} aria-label={t.proposalItem(proposalTaskLabel(change, t), proposalTaskTitle(change, t))}>
                   <span class="task-check proposal-task-check" aria-hidden="true"><span class="checkmark proposal-checkmark">{proposalTaskSymbol(change)}</span></span>
-                  <span class="task-title proposal-task-title">{proposalTaskTitle(change)}</span>
+                  <span class="task-title proposal-task-title">{proposalTaskTitle(change, t)}</span>
                 </li>
               {/each}
               {#if proposalIsStale || dirty}
                 <li class="proposal-meta-row">
                   {#if proposalIsStale}
-                    <p class="proposal-warning">Cette proposition ne correspond plus à la version affichée.</p>
+                    <p class="proposal-warning">{t.proposalStaleWarning}</p>
                   {:else}
-                    <p class="proposal-warning">Enregistrement automatique en cours.</p>
+                    <p class="proposal-warning">{t.autosaveInProgress}</p>
                   {/if}
                 </li>
               {/if}
               <li class="proposal-actions-row">
                 <div class="proposal-actions">
-                  <button class="primary-button" type="button" disabled={proposalBlocked} on:click={() => void acceptActiveProposal()}>Accepter</button>
-                  <button class="secondary-button" type="button" on:click={() => void rejectActiveProposal()}>Refuser</button>
+                  <button class="primary-button" type="button" disabled={proposalBlocked} on:click={() => void acceptActiveProposal()}>{t.accept}</button>
+                  <button class="secondary-button" type="button" on:click={() => void rejectActiveProposal()}>{t.reject}</button>
                 </div>
               </li>
             {/if}
           {/if}
         </ul>
       {:else}
-          <p class="empty-state">Aucune tâche. Ajoutez le prochain geste.</p>
+          <p class="empty-state">{t.noTasks}</p>
       {/if}
       </div>
       {#if !isDesktop || filePath}
         <form class="add-task" on:submit|preventDefault={handleAdd}>
-          <label class="visually-hidden" for="new-task">Nouvelle tâche</label>
+          <label class="visually-hidden" for="new-task">{t.newTaskLabel}</label>
           <span class="add-mark" aria-hidden="true">+</span>
-          <input bind:this={newTaskInput} id="new-task" bind:value={newTask} type="text" placeholder="Ajouter une tâche" autocomplete="off" />
-          <button class="add-button" type="submit">Ajouter</button>
+          <input bind:this={newTaskInput} id="new-task" bind:value={newTask} type="text" placeholder={t.addTaskPlaceholder} autocomplete="off" />
+          <button class="add-button" type="submit">{t.add}</button>
         </form>
       {/if}
     </section>
 
   {:else if view === 'task-details'}
     <section class="detail-page" aria-labelledby="detail-heading">
-      <button class="back-button" type="button" on:click={closeTaskDetails}>← Retour aux tâches</button>
+      <button class="back-button" type="button" on:click={closeTaskDetails}>{t.backToTasks}</button>
       {#if selectedTask}
         <h2 id="detail-heading">{selectedTask.title}</h2>
         <div class="detail-status">
           <span class:detail-complete={selectedTask.checked} class="status-dot" aria-hidden="true"></span>
-          <span>{selectedTask.checked ? 'Terminée' : 'À faire'}</span>
-          <button class="secondary-button detail-toggle" type="button" on:click={() => handleToggle(selectedTask.id)}>{selectedTask.checked ? 'Rouvrir' : 'Terminer'}</button>
+          <span>{selectedTask.checked ? t.statusDone : t.statusTodo}</span>
+          <button class="secondary-button detail-toggle" type="button" on:click={() => handleToggle(selectedTask.id)}>{selectedTask.checked ? t.reopen : t.complete}</button>
         </div>
-        <p class="detail-meta">Cette tâche vient de <strong>{projectName}</strong>, ligne {selectedTask.lineIndex + 1}.</p>
-        <label class="detail-note-label" for="task-note">Notes</label>
-        <textarea id="task-note" bind:value={detailNote} on:input={persistDetailNote} placeholder="Ajouter une note personnelle…"></textarea>
+        <p class="detail-meta">{t.taskSource} <strong>{projectName}</strong>, {t.taskLine(selectedTask.lineIndex + 1)}</p>
+        <label class="detail-note-label" for="task-note">{t.notes}</label>
+        <textarea id="task-note" bind:value={detailNote} on:input={persistDetailNote} placeholder={t.notePlaceholder}></textarea>
       {:else}
-        <p class="empty-state">Cette tâche n’existe plus dans le document courant.</p>
+        <p class="empty-state">{t.taskGone}</p>
       {/if}
     </section>
   {:else if view === 'settings'}
     <section class="settings-page" aria-labelledby="settings-heading">
-      <button class="back-button" type="button" on:click={() => navigate('tasks')}>← Retour aux tâches</button>
-      <h2 id="settings-heading">Paramètres</h2>
+      <button class="back-button" type="button" on:click={() => navigate('tasks')}>{t.backToTasks}</button>
+      <h2 id="settings-heading">{t.titleSettings}</h2>
       <div class="settings-card">
-        <div><strong>Enregistrement automatique</strong><span class="setting-state">Activé</span></div>
+        <div><strong>{t.autosave}</strong><span class="setting-state">{t.enabled}</span></div>
       </div>
       <div class="settings-card">
-        <div><strong>Données</strong><span class="setting-state">Local uniquement</span></div>
+        <div><strong>{t.data}</strong><span class="setting-state">{t.localOnly}</span></div>
+      </div>
+      <div class="settings-card">
+        <div>
+          <label for="language-select"><strong>{t.language}</strong></label>
+          <select id="language-select" class="language-select" value={language} on:change={(event) => setLanguage(event.currentTarget.value as Language)}>
+            {#each languages as option (option)}
+              <option value={option} lang={option}>{dictionaries[option].languageName}</option>
+            {/each}
+          </select>
+        </div>
       </div>
     </section>
   {:else}
     <section class="projects-page" aria-labelledby="projects-heading">
-      <button class="back-button" type="button" on:click={() => navigate('tasks')}>← Retour aux tâches</button>
-      <h2 id="projects-heading">Nouveau projet</h2>
+      <button class="back-button" type="button" on:click={() => navigate('tasks')}>{t.backToTasks}</button>
+      <h2 id="projects-heading">{t.newProject}</h2>
       {#if isDesktop}
         <form class="project-form" on:submit|preventDefault={() => void createProject()}>
-          <label for="project-name">Nom du projet</label>
-          <input id="project-name" bind:value={projectNameInput} placeholder="Ex. Révisions de maths" />
-          <label for="project-root">Dossier externe <span class="optional-label">(facultatif)</span></label>
+          <label for="project-name">{t.projectName}</label>
+          <input id="project-name" bind:value={projectNameInput} placeholder={t.projectNamePlaceholder} />
+          <label for="project-root">{t.externalFolder} <span class="optional-label">{t.optional}</span></label>
           <div class="folder-picker">
-            <input id="project-root" value={projectRootInput} readonly placeholder="Aucun dossier" />
-            <button class="secondary-button" type="button" on:click={() => void chooseProjectRoot()}>Choisir</button>
+            <input id="project-root" value={projectRootInput} readonly placeholder={t.noFolder} />
+            <button class="secondary-button" type="button" on:click={() => void chooseProjectRoot()}>{t.choose}</button>
           </div>
-          <button class="primary-button" type="submit" disabled={!projectNameInput.trim()}>Créer le projet</button>
+          <button class="primary-button" type="submit" disabled={!projectNameInput.trim()}>{t.createTheProject}</button>
         </form>
       {:else}
-        <p class="empty-state">La création de projets est disponible dans l’application desktop.</p>
+        <p class="empty-state">{t.desktopOnlyProjects}</p>
       {/if}
       {#if projects.length}
         <div class="registered-projects">
-          <h3>Projets enregistrés</h3>
+          <h3>{t.savedProjects}</h3>
           {#each projects as project (project.id)}
             <button type="button" class:active-project={project.id === activeProjectId} on:click={() => void openProject(project)}><strong>{project.name}</strong><small>{project.root}</small></button>
           {/each}
@@ -702,6 +724,6 @@
 
   <footer class="status-bar" role="status" aria-live="polite">
     <span class:is-dirty={dirty} class="status-dot" aria-hidden="true"></span>
-    <span>{notice}</span>
+    <span>{noticeText}</span>
   </footer>
 </main>

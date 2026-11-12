@@ -87,7 +87,7 @@ mod tests {
     fn active_project_is_selected_by_id_without_changing_folder_links() {
         let first = Project {
             id: "first".to_owned(),
-            name: "Révisions".to_owned(),
+            name: "Revision".to_owned(),
             root: PathBuf::from("C:/notes"),
         };
         let second = Project {

@@ -1,5 +1,5 @@
-# Révisions
+# Revision
 
-- [ ] Relire le cours
-- [ ] Faire une fiche
-- [x] Ancien exercice
+- [ ] Reread the lesson
+- [ ] Make a summary sheet
+- [x] Old exercise

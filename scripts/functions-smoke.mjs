@@ -12,7 +12,7 @@ const configPath = join(root, 'config.json');
 await mkdir(projectRoot);
 await writeFile(
   join(projectRoot, 'TODO.md'),
-  '# Smoke\n\n- [ ] Lire la fiche\n- [ ] Faire une fiche\n- [x] Ancien exercice\n',
+  '# Smoke\n\n- [ ] Read the sheet\n- [ ] Make a summary sheet\n- [x] Old exercise\n',
 );
 await writeFile(configPath, `${JSON.stringify({
   activeProjectId: 'smoke',
@@ -56,7 +56,7 @@ function result(response) {
 
 try {
   const tasks = result(await call('get_tasks', { projectId: 'smoke' }));
-  if (tasks.tasks.length !== 3 || tasks.content !== undefined) throw new Error('get_tasks doit être compact');
+  if (tasks.tasks.length !== 3 || tasks.content !== undefined) throw new Error('get_tasks must be compact');
 
   const proposal = result(await call('propose_tasks', {
     project: 'Smoke project',
@@ -69,22 +69,22 @@ try {
   const allOperations = result(await call('propose_task_changes', {
     projectId: 'smoke',
     baseVersion: tasks.version,
-    reason: 'Smoke des quatre opérations',
+    reason: 'Smoke test of the four operations',
     changes: [
-      { operation: 'add', title: 'Faire un exercice de synthèse', afterTaskId: null },
-      { operation: 'update', taskId: 'task-2', title: 'Relire la fiche', checked: null },
+      { operation: 'add', title: 'Do a review exercise', afterTaskId: null },
+      { operation: 'update', taskId: 'task-2', title: 'Reread the sheet', checked: null },
       { operation: 'update', taskId: 'task-3', title: null, checked: true },
       { operation: 'delete', taskId: 'task-4' },
     ],
   }));
   const allProposals = result(await call('list_proposals', { projectId: 'smoke' }));
   if (allProposals.length !== 2 || allProposals.some(item => item.id !== proposal.id && item.id !== allOperations.id)) {
-    throw new Error('la proposition multi-opérations est absente');
+    throw new Error('the multi-operation proposal is missing');
   }
   const detailed = result(await call('get_tasks_with_content', { projectId: 'smoke' }));
-  if (!detailed.content.includes('Lire la fiche')) throw new Error('contenu explicite absent');
-  if ((await readFile(join(projectRoot, 'TODO.md'), 'utf8')).includes('Faire un exercice de synthèse')) {
-    throw new Error('le connecteur a modifié TODO.md sans décision humaine');
+  if (!detailed.content.includes('Read the sheet')) throw new Error('explicit content missing');
+  if ((await readFile(join(projectRoot, 'TODO.md'), 'utf8')).includes('Do a review exercise')) {
+    throw new Error('the connector modified TODO.md without a human decision');
   }
   console.log(JSON.stringify({ pass: true, proposalId: proposal.id, allOperationsId: allOperations.id }));
 } finally {

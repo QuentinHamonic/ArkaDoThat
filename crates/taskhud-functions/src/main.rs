@@ -139,7 +139,7 @@ impl Functions {
         registry
             .active_project()
             .cloned()
-            .ok_or_else(|| TodoError::ProjectNotFound("actif".to_owned()))
+            .ok_or_else(|| TodoError::ProjectNotFound("active".to_owned()))
     }
 
     fn snapshot(&self, project_id: &str) -> Result<TodoSnapshot, TodoError> {
@@ -172,7 +172,7 @@ impl Functions {
                     if title.trim().is_empty() {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: "une tâche ajoutée doit avoir un titre".to_owned(),
+                            message: "an added task must have a title".to_owned(),
                         });
                     }
                     if after_task_id
@@ -192,7 +192,7 @@ impl Functions {
                     if !known_task(task_id) || (title.is_none() && checked.is_none()) {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: format!("modification invalide pour {task_id}"),
+                            message: format!("invalid update for {task_id}"),
                         });
                     }
                     if title
@@ -201,7 +201,7 @@ impl Functions {
                     {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: format!("le titre de {task_id} ne peut pas être vide"),
+                            message: format!("the title of {task_id} cannot be empty"),
                         });
                     }
                 }
@@ -282,8 +282,7 @@ impl Functions {
                 if args.reason.trim().is_empty() || args.changes.is_empty() {
                     return Err(TodoError::InvalidConfig {
                         path: self.registry_path.clone(),
-                        message: "une proposition doit avoir une raison et au moins un changement"
-                            .to_owned(),
+                        message: "a proposal must have a reason and at least one change".to_owned(),
                     });
                 }
                 let project = self.project(&args.project_id)?;
@@ -307,8 +306,7 @@ impl Functions {
                 if args.reason.trim().is_empty() || args.tasks.is_empty() {
                     return Err(TodoError::InvalidConfig {
                         path: self.registry_path.clone(),
-                        message: "une proposition doit avoir une raison et au moins une tâche"
-                            .to_owned(),
+                        message: "a proposal must have a reason and at least one task".to_owned(),
                     });
                 }
                 let project = self.project_selector(args.project.as_deref())?;
@@ -355,7 +353,7 @@ impl Functions {
             }
             _ => Err(TodoError::InvalidConfig {
                 path: self.registry_path.clone(),
-                message: format!("fonction inconnue : {}", call.function),
+                message: format!("unknown function: {}", call.function),
             }),
         }
     }
@@ -393,7 +391,7 @@ fn main() -> Result<(), String> {
                 Ok(result) => json!({ "ok": true, "result": result }),
                 Err(error) => json!({ "ok": false, "error": error.to_string() }),
             },
-            Err(error) => json!({ "ok": false, "error": format!("appel invalide : {error}") }),
+            Err(error) => json!({ "ok": false, "error": format!("invalid call: {error}") }),
         };
         println!(
             "{}",

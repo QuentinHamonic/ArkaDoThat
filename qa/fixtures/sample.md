@@ -1,4 +1,4 @@
-# Fichier chargé
+# Loaded file
 
-- [ ] Charger ce fichier
-- [x] Vérifier le nom de source
+- [ ] Load this file
+- [x] Check the source name

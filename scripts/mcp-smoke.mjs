@@ -13,7 +13,7 @@ const projectRoot = join(root, 'project');
 const configPath = join(root, 'config.json');
 await writeFile(join(root, 'placeholder'), '');
 await mkdir(projectRoot);
-await writeFile(join(projectRoot, 'TODO.md'), '# Smoke\n\n- [ ] Vérifier MCP\n');
+await writeFile(join(projectRoot, 'TODO.md'), '# Smoke\n\n- [ ] Check MCP\n');
 await writeFile(
   configPath,
   `${JSON.stringify({
@@ -77,7 +77,7 @@ try {
     capabilities: {},
     clientInfo: { name: 'taskhud-smoke', version: '0.1.0' },
   });
-  if (!initialized.result?.serverInfo) throw new Error('Réponse initialize incomplète');
+  if (!initialized.result?.serverInfo) throw new Error('Incomplete initialize response');
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
 
   const tools = (await request('tools/list', {})).result?.tools ?? [];
@@ -100,7 +100,7 @@ try {
     arguments: {},
   }));
   if (projects[0]?.id !== 'smoke' || projects[0]?.todoExists !== true) {
-    throw new Error('list_projects ne retourne pas le projet smoke attendu');
+    throw new Error('list_projects does not return the expected smoke project');
   }
 
   const snapshot = textResult(await request('tools/call', {
@@ -110,7 +110,7 @@ try {
   const proposalArgs = {
     project: 'Smoke project',
     reason: 'Smoke test',
-    tasks: ['Vérifier la déduplication'],
+    tasks: ['Check deduplication'],
   };
   const firstProposal = textResult(await request('tools/call', {
     name: 'propose_tasks',
@@ -120,15 +120,15 @@ try {
     name: 'propose_tasks',
     arguments: proposalArgs,
   }));
-  if (firstProposal.id !== duplicateProposal.id) throw new Error('Déduplication MCP absente');
+  if (firstProposal.id !== duplicateProposal.id) throw new Error('MCP deduplication missing');
 
   const proposals = textResult(await request('tools/call', {
     name: 'list_proposals',
     arguments: { projectId: 'smoke' },
   }));
-  if (proposals.length !== 1) throw new Error('La proposition smoke n’est pas persistée une seule fois');
-  if ((await readFile(join(projectRoot, 'TODO.md'), 'utf8')).includes('Vérifier la déduplication')) {
-    throw new Error('Le MCP a modifié TODO.md sans validation humaine');
+  if (proposals.length !== 1) throw new Error('The smoke proposal is not persisted exactly once');
+  if ((await readFile(join(projectRoot, 'TODO.md'), 'utf8')).includes('Check deduplication')) {
+    throw new Error('The MCP server modified TODO.md without human approval');
   }
 
   console.log(JSON.stringify({ pass: true, tools: toolNames, proposalId: firstProposal.id }));

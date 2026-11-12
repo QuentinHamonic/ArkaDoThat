@@ -1,22 +1,22 @@
 @echo off
 setlocal
 
-echo [1/2] Verification frontend...
+echo [1/2] Frontend check...
 call npm.cmd run check
 if errorlevel 1 (
-  echo Echec de la verification frontend.
+  echo Frontend check failed.
   exit /b 1
 )
 
-echo [2/2] Generation Tauri...
+echo [2/2] Tauri build...
 call npm.cmd run build:desktop
 if errorlevel 1 (
-  echo Echec de la generation desktop.
+  echo Desktop build failed.
   exit /b 1
 )
 
 echo.
-echo Generation terminee.
-echo Executable brut : target\release\taskhud.exe
-echo Installateurs   : target\release\bundle\
+echo Build finished.
+echo Raw executable : target\release\taskhud.exe
+echo Installers     : target\release\bundle\
 exit /b 0

@@ -14,16 +14,16 @@ use taskhud_core::{
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 struct ProjectIdArgs {
-    #[schemars(description = "Identifiant du projet enregistré dans TaskHUD")]
+    #[schemars(description = "Identifier of the project registered in TaskHUD")]
     project_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 struct ProposalIdArgs {
-    #[schemars(description = "Identifiant du projet enregistré dans TaskHUD")]
+    #[schemars(description = "Identifier of the project registered in TaskHUD")]
     project_id: String,
-    #[schemars(description = "Identifiant de la proposition")]
+    #[schemars(description = "Proposal identifier")]
     proposal_id: String,
 }
 
@@ -77,13 +77,13 @@ impl From<TaskChangeInput> for TaskChange {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 struct ProposeTaskChangesArgs {
-    #[schemars(description = "Identifiant du projet enregistré dans TaskHUD")]
+    #[schemars(description = "Identifier of the project registered in TaskHUD")]
     project_id: String,
-    #[schemars(description = "Version SHA-256 du TODO.md lu avant la proposition")]
+    #[schemars(description = "SHA-256 version of the TODO.md read before the proposal")]
     base_version: String,
-    #[schemars(description = "Pourquoi ces changements sont nécessaires")]
+    #[schemars(description = "Why these changes are needed")]
     reason: String,
-    #[schemars(description = "Changements élémentaires à soumettre à validation humaine")]
+    #[schemars(description = "Elementary changes to submit for human approval")]
     changes: Vec<TaskChangeInput>,
 }
 
@@ -91,12 +91,12 @@ struct ProposeTaskChangesArgs {
 #[serde(rename_all = "camelCase")]
 struct ProposeTasksArgs {
     #[schemars(
-        description = "Nom ou identifiant du projet ; le projet actif est utilisé si absent"
+        description = "Project name or identifier; the active project is used when omitted"
     )]
     project: Option<String>,
-    #[schemars(description = "Pourquoi ces tâches sont proposées")]
+    #[schemars(description = "Why these tasks are proposed")]
     reason: String,
-    #[schemars(description = "Titres des tâches à ajouter")]
+    #[schemars(description = "Titles of the tasks to add")]
     tasks: Vec<String>,
 }
 
@@ -139,7 +139,7 @@ impl TaskHudMcp {
         registry
             .active_project()
             .cloned()
-            .ok_or_else(|| TodoError::ProjectNotFound("actif".to_owned()))
+            .ok_or_else(|| TodoError::ProjectNotFound("active".to_owned()))
     }
 
     fn summary(project: &Project) -> ProjectSummary {
@@ -154,9 +154,8 @@ impl TaskHudMcp {
     }
 
     fn json<T: Serialize>(value: &T) -> String {
-        serde_json::to_string_pretty(value).unwrap_or_else(|error| {
-            format!("{{\"error\":\"résultat impossible à sérialiser: {error}\"}}")
-        })
+        serde_json::to_string_pretty(value)
+            .unwrap_or_else(|error| format!("{{\"error\":\"cannot serialize result: {error}\"}}"))
     }
 
     fn load_snapshot(&self, project_id: &str) -> Result<TodoSnapshot, TodoError> {
@@ -179,13 +178,13 @@ impl TaskHudMcp {
                     if title.trim().is_empty() {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: "une tâche ajoutée doit avoir un titre".to_owned(),
+                            message: "an added task must have a title".to_owned(),
                         });
                     }
-                    if let Some(task_id) = after_task_id {
-                        if !known_task(task_id) {
-                            return Err(TodoError::TaskNotFound(task_id.clone()));
-                        }
+                    if let Some(task_id) = after_task_id
+                        && !known_task(task_id)
+                    {
+                        return Err(TodoError::TaskNotFound(task_id.clone()));
                     }
                 }
                 TaskChange::Update {
@@ -196,7 +195,7 @@ impl TaskHudMcp {
                     if !known_task(task_id) || (title.is_none() && checked.is_none()) {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: format!("modification invalide pour {task_id}"),
+                            message: format!("invalid update for {task_id}"),
                         });
                     }
                     if title
@@ -205,7 +204,7 @@ impl TaskHudMcp {
                     {
                         return Err(TodoError::InvalidConfig {
                             path: self.registry_path.clone(),
-                            message: format!("le titre de {task_id} ne peut pas être vide"),
+                            message: format!("the title of {task_id} cannot be empty"),
                         });
                     }
                 }
@@ -222,7 +221,7 @@ impl TaskHudMcp {
 #[tool_router(server_handler)]
 impl TaskHudMcp {
     #[tool(
-        description = "Liste les projets explicitement enregistrés et leur accessibilité locale."
+        description = "Lists the explicitly registered projects and whether they are reachable locally."
     )]
     fn list_projects(&self) -> String {
         match self.registry() {
@@ -237,7 +236,7 @@ impl TaskHudMcp {
         }
     }
 
-    #[tool(description = "Retourne les tâches et la version du TODO.md d'un projet.")]
+    #[tool(description = "Returns the tasks and the TODO.md version of a project.")]
     fn get_project_tasks(&self, Parameters(args): Parameters<ProjectIdArgs>) -> String {
         match self.load_snapshot(&args.project_id) {
             Ok(snapshot) => Self::json(&snapshot),
@@ -245,7 +244,7 @@ impl TaskHudMcp {
         }
     }
 
-    #[tool(description = "Retourne le projet actif configuré dans TaskHUD, s'il existe.")]
+    #[tool(description = "Returns the active project configured in TaskHUD, if any.")]
     fn get_active_project(&self) -> String {
         match self.registry() {
             Ok(registry) => match registry.active_project() {
@@ -257,15 +256,14 @@ impl TaskHudMcp {
     }
 
     #[tool(
-        description = "Enregistre en une opération une proposition d'ajout de tâches pour un projet, sans modifier TODO.md. La validation humaine est obligatoire."
+        description = "Records, in one call, a proposal to add tasks to a project, without modifying TODO.md. Human approval is required."
     )]
     fn propose_tasks(&self, Parameters(args): Parameters<ProposeTasksArgs>) -> String {
         let result = (|| {
             if args.reason.trim().is_empty() || args.tasks.is_empty() {
                 return Err(TodoError::InvalidConfig {
                     path: self.registry_path.clone(),
-                    message: "une proposition doit avoir une raison et au moins une tâche"
-                        .to_owned(),
+                    message: "a proposal must have a reason and at least one task".to_owned(),
                 });
             }
             let project = self.project_selector(args.project.as_deref())?;
@@ -289,7 +287,7 @@ impl TaskHudMcp {
     }
 
     #[tool(
-        description = "Enregistre une proposition structurée, sans modifier TODO.md. La validation humaine est obligatoire."
+        description = "Records a structured proposal, without modifying TODO.md. Human approval is required."
     )]
     fn propose_task_changes(&self, Parameters(args): Parameters<ProposeTaskChangesArgs>) -> String {
         let result = (|| {
@@ -303,13 +301,13 @@ impl TaskHudMcp {
             if args.changes.is_empty() {
                 return Err(TodoError::InvalidConfig {
                     path: self.registry_path.clone(),
-                    message: "une proposition doit contenir au moins un changement".to_owned(),
+                    message: "a proposal must contain at least one change".to_owned(),
                 });
             }
             if args.reason.trim().is_empty() {
                 return Err(TodoError::InvalidConfig {
                     path: self.registry_path.clone(),
-                    message: "une proposition doit expliquer sa raison".to_owned(),
+                    message: "a proposal must explain its reason".to_owned(),
                 });
             }
             let project = self.project(&args.project_id)?;
@@ -324,7 +322,7 @@ impl TaskHudMcp {
         }
     }
 
-    #[tool(description = "Liste les propositions locales en attente pour un projet.")]
+    #[tool(description = "Lists the pending local proposals for a project.")]
     fn list_proposals(&self, Parameters(args): Parameters<ProjectIdArgs>) -> String {
         let result = (|| {
             let project = self.project(&args.project_id)?;
@@ -336,7 +334,7 @@ impl TaskHudMcp {
         }
     }
 
-    #[tool(description = "Retourne une proposition locale détaillée, sans l'appliquer.")]
+    #[tool(description = "Returns a detailed local proposal, without applying it.")]
     fn get_proposal(&self, Parameters(args): Parameters<ProposalIdArgs>) -> String {
         let result = (|| {
             let project = self.project(&args.project_id)?;

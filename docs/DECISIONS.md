@@ -1,19 +1,23 @@
-# Décisions d’architecture
+# Architecture decisions
 
-## 2026-10-16 — MVP web local avant Tauri
+## 2026-10-16 — Local web MVP before Tauri
 
-Rust/Cargo ne sont pas disponibles dans l’environnement initial. Pour obtenir une tranche observable sans inventer un build desktop, le premier incrément utilise Vite, Svelte et TypeScript dans un navigateur local.
+Rust/Cargo are not available in the initial environment. To get an observable slice without inventing a desktop build, the first increment uses Vite, Svelte and TypeScript in a local browser.
 
-Le noyau Markdown reste isolé dans `src/lib/todo.ts`. La couche navigateur peut charger un fichier lorsque l’API locale est disponible ; l’adaptateur Tauri viendra ensuite remplacer cette frontière sans changer le contrat métier.
+The Markdown core stays isolated in `src/lib/todo.ts`. The browser layer can load a file when the local API is available; the Tauri adapter will later replace this boundary without changing the domain contract.
 
-## 2026-10-16 — Source humaine conservée
+## 2026-10-16 — Human source kept
 
-`TODO.md` reste le format de référence : il est lisible, versionnable et diffable. L’état d’interface ne doit pas devenir la source unique.
+`TODO.md` stays the reference format: it is readable, versionable and diffable. The interface state must not become the single source.
 
-## 2026-10-16 — Proposition jamais silencieuse
+## 2026-10-16 — Never a silent proposal
 
-Une proposition d’agent est une intention en attente. Elle est affichée comme un diff avec deux décisions explicites. L’application ne traite pas le texte reçu comme une instruction de confiance.
+An agent proposal is a pending intent. It is shown as a diff with two explicit decisions. The application does not treat the received text as a trusted instruction.
 
-## Direction visuelle
+## Visual direction
 
-Le produit s’inspire des extensions TODO Markdown qui gardent la liste humaine et diffable, ainsi que des petites fenêtres flottantes conçues pour rester visibles sans devenir un tableau de bord. La traduction TaskHUD est une surface graphite compacte, une ligne ambre réservée au signal actif et une zone de proposition distincte ; pas de grille de cartes ni de navigation lourde.
+The product draws on Markdown TODO extensions that keep the list human and diffable, and on small floating windows designed to stay visible without becoming a dashboard. In TaskHUD this becomes a compact graphite surface, an amber line reserved for the active signal and a distinct proposal area; no card grid and no heavy navigation.
+
+## 2026-11-12 — English by default, French as an option
+
+TaskHUD is going open source, so the code, documentation, connector messages and default interface are in English. The interface keeps a French dictionary selectable in Settings. Strings live in a small typed dictionary (`src/lib/i18n.ts`) with no i18n dependency: two languages and a few dozen strings do not justify one. Backend error messages and MCP descriptions stay English only, because they are read by developers and AI clients.

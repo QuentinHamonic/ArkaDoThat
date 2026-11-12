@@ -1,12 +1,12 @@
 # TaskHUD MCP
 
-TaskHUD expose un serveur MCP local autonome, `taskhud-mcp`, sur `stdio`. Il lit uniquement les projets déclarés dans un fichier JSON et enregistre les propositions dans `.taskhud/proposals.json` sous le projet concerné.
+TaskHUD provides a standalone local MCP server, `taskhud-mcp`, over `stdio`. It only reads the projects declared in a JSON file and stores proposals in `.taskhud/proposals.json` under the project concerned.
 
-Le serveur ne propose volontairement aucun outil d’application directe. Un agent peut lire les tâches et soumettre un diff, mais l’application de ce diff reste une décision humaine dans TaskHUD.
+On purpose, the server offers no tool that applies a change directly. An agent can read the tasks and submit a diff, but applying that diff stays a human decision in TaskHUD.
 
-## Configuration locale
+## Local configuration
 
-Créer un fichier `config.json` :
+Create a `config.json` file:
 
 ```json
 {
@@ -21,25 +21,25 @@ Créer un fichier `config.json` :
 }
 ```
 
-Le chemin `root` doit désigner un projet explicitement autorisé. TaskHUD y lit uniquement `TODO.md` et écrit les propositions dans `.taskhud/`. Ajoutez `.taskhud/` à l’ignore Git du projet suivi ; le dépôt TaskHUD le fait déjà.
+The `root` path must point to an explicitly allowed project. TaskHUD only reads `TODO.md` there and writes proposals to `.taskhud/`. Add `.taskhud/` to the Git ignore file of the tracked project; the TaskHUD repository already does.
 
-## Lancer le serveur
+## Run the server
 
-Depuis une release installée :
+From an installed release:
 
 ```text
 taskhud-mcp.exe --config C:\Users\you\AppData\Local\TaskHUD\config.json
 ```
 
-Depuis les sources :
+From source:
 
 ```powershell
 cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
 ```
 
-Le serveur n’a pas besoin que la fenêtre Tauri soit ouverte.
+The server does not need the Tauri window to be open.
 
-## Outils exposés
+## Exposed tools
 
 - `list_projects`
 - `get_project_tasks`
@@ -48,11 +48,11 @@ Le serveur n’a pas besoin que la fenêtre Tauri soit ouverte.
 - `list_proposals`
 - `get_proposal`
 
-`propose_task_changes` exige la version SHA-256 retournée par `get_project_tasks`. Une version obsolète est refusée. Les propositions identiques encore en attente sont dédupliquées.
+`propose_task_changes` requires the SHA-256 version returned by `get_project_tasks`. An outdated version is rejected. Identical proposals that are still pending are deduplicated.
 
-## Clients MCP
+## MCP clients
 
-Exemple de configuration générique `stdio` :
+Example of a generic `stdio` configuration:
 
 ```json
 {
@@ -68,4 +68,4 @@ Exemple de configuration générique `stdio` :
 }
 ```
 
-Les chemins et emplacements de configuration exacts dépendent du client. Le smoke test versionné vérifie la négociation MCP, la découverte des six outils, la lecture d’un projet, la persistance d’une proposition et l’absence d’écriture silencieuse dans `TODO.md`. L’intégration complète de Codex CLI et de Claude Code n’est pas déclarée validée tant qu’elle n’a pas été exécutée avec leurs installations respectives.
+The exact paths and configuration locations depend on the client. The versioned smoke test checks MCP negotiation, discovery of the six tools, reading a project, persisting a proposal and the absence of any silent write to `TODO.md`. Full integration with Codex CLI and Claude Code is not declared validated until it has been run with their respective installations.
