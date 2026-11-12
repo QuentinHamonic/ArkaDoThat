@@ -6,9 +6,9 @@ No account, cloud service, database, or HTTP server is required for the local wo
 
 ## Current status
 
-The repository currently contains the V0.1 Tauri/Rust foundation and an independent `taskhud-mcp` stdio server. The desktop shell can load and save `TODO.md`; the MCP server can read registered projects and persist proposals without applying them.
+The repository currently contains the V0.1 Tauri/Rust foundation, a working manual TODO flow, and two agent-facing connectors. `taskhud-mcp` exposes the domain through MCP `stdio`; `taskhud-functions` exposes the same bounded operations as compact JSONL function calls. Both can read tasks and persist proposals, but neither can apply a change silently. The desktop bridge loads pending proposals, shows their diff, and accepts or rejects them with a version check.
 
-This is not yet a packaged public release. VS Code workspace tracking, the final proposal UI, installers, and cross-platform builds are still in progress. See [STATE.md](STATE.md) for the operational checkpoint.
+This is not yet a packaged public release. VS Code workspace tracking, installers, cross-platform builds, and the complete native file-dialog/proposal journey are still open. The native WebView manual controls and Tauri commands have been checked. See [STATE.md](STATE.md) for the operational checkpoint.
 
 ## Local development
 
@@ -23,6 +23,14 @@ cargo check --workspace
 npx tauri dev
 ```
 
+Pour générer l'application Windows et ses installateurs :
+
+```powershell
+.\build-desktop.cmd
+```
+
+Le binaire brut est généré dans `target\release\taskhud.exe`. Les installateurs Tauri sont dans `target\release\bundle\` (notamment les formats `.exe` et `.msi` lorsque les outils Windows correspondants sont disponibles). Cette commande ne publie rien et ne nécessite aucun compte.
+
 The MCP server can be run independently:
 
 ```powershell
@@ -30,6 +38,14 @@ cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Local\TaskHUD\config.j
 ```
 
 See [docs/MCP.md](docs/MCP.md) for the local registry format and client configuration.
+
+The provider-neutral function facade can be run as a JSONL process:
+
+```powershell
+cargo run -p taskhud-functions -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
+```
+
+See [docs/CONNECTORS.md](docs/CONNECTORS.md) for the compact function contract.
 
 ## QA
 

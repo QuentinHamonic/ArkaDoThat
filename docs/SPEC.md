@@ -48,3 +48,17 @@ Le parcours principal tient dans une petite fenêtre, fonctionne à 320 px de la
 - Le parcours T1 à T4 doit être exécuté dans un navigateur headless sur le serveur local.
 - Le rendu doit être inspecté à 320 px et 768 px de large.
 - Les limites liées à Tauri, Rust, VS Code, Wayland, macOS et Linux doivent rester signalées comme non vérifiées tant qu’elles ne sont pas exécutées sur leurs environnements.
+
+## Compléments de la tranche TODO/connecteurs
+
+### T7 — Connecteurs bornés
+
+MCP et les appels de fonctions JSONL peuvent lire le projet, demander explicitement le contenu complet et soumettre une proposition versionnée. Ils ne peuvent pas appliquer directement une modification au `TODO.md`. Une proposition en attente est visible dans l'application et sa décision humaine est persistée.
+
+**Échec :** un connecteur écrit directement dans le fichier, renvoie inutilement tout le contenu par défaut ou masque une proposition déjà décidée.
+
+### T8 — Charge et tailles d'affichage
+
+La liste reste utilisable avec plusieurs centaines de tâches. À 320, 768, 1024 et 1440 px de large, elle ne crée pas de défilement horizontal ; le défilement vertical est contenu dans la zone de liste.
+
+**Vérification réalisée :** parcours navigateur sur un `TODO.md` de 600 tâches, plus toggle, ajout avec Entrée et acceptation d'une proposition.
