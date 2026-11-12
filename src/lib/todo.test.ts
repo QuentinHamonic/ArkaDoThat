@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendTask, parseTodo, toggleTask } from './todo.ts';
+import { appendTask, parseTodo, tasksMissingFrom, toggleTask } from './todo.ts';
 
 test('toggleTask keeps CRLF line endings', () => {
   const markdown = '# Today\r\n\r\n- [ ] First\r\n- [x] Second\r\n';
@@ -37,3 +37,11 @@ test('parseTodo follows the shared task syntax table', async () => {
 test('toggleTask unchecks an upper-case [X]', () => {
   assert.equal(toggleTask('- [X] Done\n', 'task-0'), '- [ ] Done\n');
 });
+
+test('tasksMissingFrom lists the local tasks the disk version lacks', () => {
+  const local = '- [x] Alpha\r\n- [ ] Beta\r\n- [ ] Same\r\n';
+  const disk = '- [ ] Alpha\r\n- [ ] Same\r\n- [ ] Only on disk\r\n';
+  assert.deepEqual(tasksMissingFrom(local, disk).map(task => task.title), ['Alpha', 'Beta']);
+  assert.deepEqual(tasksMissingFrom(disk, disk), []);
+});
+

@@ -3,7 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { appendTask, parseTodo, toggleTask } from './lib/todo';
+  import { appendTask, parseTodo, tasksMissingFrom, toggleTask } from './lib/todo';
   import { dictionaries, languages, loadLanguage, saveLanguage, type Language, type Messages } from './lib/i18n';
 
   type TodoTask = {
@@ -57,6 +57,9 @@
   let language: Language = loadLanguage();
   let notice: Notice = m => m.noProjectOpen;
   let dirty = false;
+  // Set when an autosave was refused because TODO.md changed on disk: autosave stops
+  // and the local text is kept until the user reloads or keeps their version.
+  let saveConflict: { disk: TodoSnapshot } | null = null;
   let filePath: string | null = null;
   let documentVersion = '';
   let isDesktop = false;
@@ -95,7 +98,8 @@
   $: projectName = activeProject?.name ?? (filePath ? fileName.replace(/\.[^/.]+$/, '') : t.noProject);
   $: activeProposal = isDesktop ? proposals[0] ?? null : null;
   $: proposalIsStale = Boolean(isDesktop && activeProposal && activeProposal.baseVersion !== documentVersion);
-  $: proposalBlocked = Boolean(isDesktop && activeProposal && (dirty || proposalIsStale));
+  $: conflictLocalTasks = saveConflict ? tasksMissingFrom(markdown, saveConflict.disk.content) : [];
+  $: proposalBlocked =Boolean(isDesktop && activeProposal && (dirty || proposalIsStale));
 
   onMount(() => {
     isDesktop = '__TAURI_INTERNALS__' in window;
@@ -273,6 +277,10 @@
 
   function markDirty(message: Notice) {
     dirty = true;
+    if (saveConflict) {
+      notice = m => m.saveConflictNotice;
+      return;
+    }
     notice = isDesktop && filePath ? message : persistenceNotice();
     if (isDesktop && filePath) scheduleSave();
   }
@@ -397,6 +405,7 @@
     documentVersion = snapshot.version;
     fileName = fileNameFromPath(snapshot.path);
     dirty = false;
+    saveConflict = null;
   }
 
   function openFilePicker() {
@@ -430,33 +439,78 @@
   }
 
   async function saveFile() {
-    if (!dirty) return;
+    if (!dirty || saveConflict) return;
     if (!isDesktop || !filePath) {
       notice = persistenceNotice();
       return;
     }
+    await writeLocalVersion(documentVersion);
+  }
 
+  // Writes the local text if TODO.md is still at `expectedVersion`; on a version conflict,
+  // pauses autosave and keeps the local text (see saveConflict).
+  async function writeLocalVersion(expectedVersion: string) {
+    if (!filePath) return;
+    const path = filePath;
     const contentToSave = markdown;
-    const versionToSave = documentVersion;
     try {
       const snapshot = await invoke<TodoSnapshot>('save_todo', {
-        path: filePath,
-        expectedVersion: versionToSave,
+        path,
+        expectedVersion,
         content: contentToSave,
       });
-      if (markdown === contentToSave && documentVersion === versionToSave) {
+      if (filePath !== path) return;
+      if (markdown === contentToSave) {
         applySnapshot(snapshot);
         await refreshProposals();
         notice = m => m.saved;
       } else {
         documentVersion = snapshot.version;
         dirty = true;
+        saveConflict = null;
         notice = m => m.savingNext;
         scheduleSave();
       }
     } catch (error) {
+      const disk = await readDisk(path);
+      if (disk && disk.version !== expectedVersion && filePath === path) {
+        saveConflict = { disk };
+        notice = m => m.saveConflictNotice;
+      } else {
+        notice = errorNotice(error);
+      }
+    }
+  }
+
+  async function readDisk(path: string): Promise<TodoSnapshot | null> {
+    try {
+      return await invoke<TodoSnapshot>('read_todo', { path });
+    } catch {
+      return null;
+    }
+  }
+
+  async function reloadFromDisk() {
+    if (!filePath) return;
+    try {
+      applySnapshot(await invoke<TodoSnapshot>('read_todo', { path: filePath }));
+      await refreshProposals();
+      notice = m => m.reloadedFromDisk;
+    } catch (error) {
       notice = errorNotice(error);
     }
+  }
+
+  async function keepLocalVersion() {
+    if (!filePath) return;
+    // Overwrites the version read just now, never an older one the user has not seen.
+    const disk = await readDisk(filePath);
+    if (!disk) {
+      notice = errorNotice(`cannot read ${filePath}`);
+      return;
+    }
+    saveConflict = null;
+    await writeLocalVersion(disk.version);
   }
 
   async function windowAction(action: 'minimize' | 'toggle-maximize' | 'close') {
@@ -581,6 +635,24 @@
         <h2 id="tasks-heading">{t.todoHeading}</h2>
         <span class="task-count" aria-label={t.taskCount(tasks.length)}>{tasks.length}</span>
       </div>
+
+      {#if saveConflict}
+        <div class="save-conflict" role="alert">
+          <p><strong>{t.saveConflictTitle}</strong> {t.saveConflictBody}</p>
+          {#if conflictLocalTasks.length}
+            <p class="save-conflict-label">{t.saveConflictLocalOnly}</p>
+            <ul>
+              {#each conflictLocalTasks as task (task.id)}
+                <li><span aria-hidden="true">{task.checked ? '✓' : '○'}</span> {task.title}</li>
+              {/each}
+            </ul>
+          {/if}
+          <div class="proposal-actions">
+            <button class="primary-button" type="button" on:click={() => void reloadFromDisk()}>{t.reloadFromDisk}</button>
+            <button class="secondary-button" type="button" on:click={() => void keepLocalVersion()}>{t.keepMyVersion}</button>
+          </div>
+        </div>
+      {/if}
 
       <div class="task-stream">
       {#if isDesktop && !filePath}

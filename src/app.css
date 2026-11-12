@@ -131,6 +131,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 @keyframes proposal-pulse { 0%, 100% { opacity: 1; } 24% { opacity: .68; } }
 .proposal-meta-row, .proposal-actions-row { display: block; border-bottom: 0; }
 .proposal-warning { margin: 6px 0 0; color: var(--warning); font-size: 10px !important; }
+.save-conflict { flex: 0 0 auto; margin: 0 0 10px; padding: 10px; border: 1px solid var(--warning); border-radius: 9px; font-size: 11px; line-height: 1.4; }
+.save-conflict p { margin: 0; }
+.save-conflict strong { color: var(--warning); }
+.save-conflict .save-conflict-label { margin-top: 8px; color: var(--muted); }
+.save-conflict ul { margin: 4px 0 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+.save-conflict .proposal-actions { display: flex; }
+.save-conflict .primary-button, .save-conflict .secondary-button { flex: 0 1 auto; min-height: 30px; padding-inline: 12px; }
 .proposal-actions { justify-content: flex-end; gap: 8px; padding-top: 8px; }
 .primary-button, .secondary-button { min-height: 36px; border-radius: 999px; font-size: 11px; font-weight: 700; }
 .primary-button { flex: 1; border: 0; background: #f2f2f2; color: #111; }

@@ -43,6 +43,13 @@ export function appendTask(markdown: string, title: string): string {
   return `${markdown}${separator}- [ ] ${cleanTitle}${newline}`;
 }
 
+// Tasks of `markdown` that `other` does not have with the same title and state.
+export function tasksMissingFrom(markdown: string, other: string): Task[] {
+  const key = (task: Task) => `${task.checked ? 'x' : ' '}${task.title}`;
+  const otherKeys = new Set(parseTodo(other).map(key));
+  return parseTodo(markdown).filter(task => !otherKeys.has(key(task)));
+}
+
 // Same rule as the Rust core: a file that already contains CRLF keeps CRLF on every line written back.
 function lineEnding(markdown: string): string {
   return markdown.includes('\r\n') ? '\r\n' : '\n';
