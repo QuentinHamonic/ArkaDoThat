@@ -280,6 +280,34 @@ impl TodoDocument {
     }
 }
 
+/// Records a proposal for `project` after checking it the way acceptance will:
+/// the `TODO.md` must still be at `base_version` (when given), the reason must
+/// not be empty, and `apply_changes` must succeed on the current document
+/// (dry run). `TODO.md` itself is never written.
+pub fn propose_changes(
+    project: &Project,
+    base_version: Option<&str>,
+    reason: String,
+    changes: Vec<TaskChange>,
+) -> Result<TaskProposal, TodoError> {
+    let document = TodoDocument::load(project.todo_path())?;
+    if let Some(expected) = base_version
+        && expected != document.version
+    {
+        return Err(TodoError::Conflict {
+            expected: expected.to_owned(),
+            actual: document.version,
+        });
+    }
+    if reason.trim().is_empty() {
+        return Err(TodoError::InvalidProposal(
+            "a proposal must explain its reason".to_owned(),
+        ));
+    }
+    document.apply_changes(&changes)?;
+    ProposalStore::open(&project.root)?.add(project.id.clone(), document.version, reason, changes)
+}
+
 pub fn ensure_todo_path(path: impl AsRef<Path>) -> Result<PathBuf, TodoError> {
     let path = path.as_ref();
     let is_todo = path

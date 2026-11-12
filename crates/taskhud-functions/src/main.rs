@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use taskhud_core::{
     Project, ProjectRegistry, ProposalStore, TaskChange, TodoDocument, TodoError, TodoSnapshot,
+    propose_changes,
 };
 
 #[derive(Debug, Deserialize)]
@@ -157,63 +158,6 @@ impl Functions {
         })
     }
 
-    fn validate_changes(
-        &self,
-        snapshot: &TodoSnapshot,
-        changes: &[TaskChange],
-    ) -> Result<(), TodoError> {
-        let known_task = |task_id: &str| snapshot.tasks.iter().any(|task| task.id == task_id);
-        for change in changes {
-            match change {
-                TaskChange::Add {
-                    title,
-                    after_task_id,
-                } => {
-                    if title.trim().is_empty() {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: "an added task must have a title".to_owned(),
-                        });
-                    }
-                    if after_task_id
-                        .as_deref()
-                        .is_some_and(|task_id| !known_task(task_id))
-                    {
-                        return Err(TodoError::TaskNotFound(
-                            after_task_id.clone().unwrap_or_default(),
-                        ));
-                    }
-                }
-                TaskChange::Update {
-                    task_id,
-                    title,
-                    checked,
-                } => {
-                    if !known_task(task_id) || (title.is_none() && checked.is_none()) {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: format!("invalid update for {task_id}"),
-                        });
-                    }
-                    if title
-                        .as_deref()
-                        .is_some_and(|value| value.trim().is_empty())
-                    {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: format!("the title of {task_id} cannot be empty"),
-                        });
-                    }
-                }
-                TaskChange::Delete { task_id } if !known_task(task_id) => {
-                    return Err(TodoError::TaskNotFound(task_id.clone()));
-                }
-                TaskChange::Delete { .. } => {}
-            }
-        }
-        Ok(())
-    }
-
     fn call(&self, call: FunctionCall) -> Result<Value, TodoError> {
         match call.function.as_str() {
             "list_projects" => {
@@ -272,25 +216,11 @@ impl Functions {
                             message: error.to_string(),
                         }
                     })?;
-                let snapshot = self.snapshot(&args.project_id)?;
-                if snapshot.version != args.base_version {
-                    return Err(TodoError::Conflict {
-                        expected: args.base_version,
-                        actual: snapshot.version,
-                    });
-                }
-                if args.reason.trim().is_empty() || args.changes.is_empty() {
-                    return Err(TodoError::InvalidConfig {
-                        path: self.registry_path.clone(),
-                        message: "a proposal must have a reason and at least one change".to_owned(),
-                    });
-                }
                 let project = self.project(&args.project_id)?;
-                let changes: Vec<TaskChange> = args.changes.into_iter().map(Into::into).collect();
-                self.validate_changes(&snapshot, &changes)?;
-                Ok(json!(ProposalStore::open(project.root)?.add(
-                    args.project_id,
-                    args.base_version,
+                let changes = args.changes.into_iter().map(Into::into).collect();
+                Ok(json!(propose_changes(
+                    &project,
+                    Some(&args.base_version),
                     args.reason,
                     changes
                 )?))
@@ -303,15 +233,13 @@ impl Functions {
                             message: error.to_string(),
                         }
                     })?;
-                if args.reason.trim().is_empty() || args.tasks.is_empty() {
-                    return Err(TodoError::InvalidConfig {
-                        path: self.registry_path.clone(),
-                        message: "a proposal must have a reason and at least one task".to_owned(),
-                    });
+                if args.tasks.is_empty() {
+                    return Err(TodoError::InvalidProposal(
+                        "a proposal must contain at least one task".to_owned(),
+                    ));
                 }
                 let project = self.project_selector(args.project.as_deref())?;
-                let snapshot = self.snapshot(&project.id)?;
-                let changes: Vec<TaskChange> = args
+                let changes = args
                     .tasks
                     .into_iter()
                     .map(|title| TaskChange::Add {
@@ -319,10 +247,9 @@ impl Functions {
                         after_task_id: None,
                     })
                     .collect();
-                self.validate_changes(&snapshot, &changes)?;
-                Ok(json!(ProposalStore::open(project.root)?.add(
-                    project.id,
-                    snapshot.version,
+                Ok(json!(propose_changes(
+                    &project,
+                    None,
                     args.reason,
                     changes
                 )?))
@@ -390,6 +317,76 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixture(label: &str) -> (PathBuf, PathBuf, String) {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = env::temp_dir().join(format!(
+            "taskhud-functions-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("TODO.md"), "- [ ] Read\n- [ ] Write\n").unwrap();
+        let config = root.join("config.json");
+        std::fs::write(
+            &config,
+            serde_json::json!({
+                "activeProjectId": "demo",
+                "projects": [{ "id": "demo", "name": "Demo", "root": root }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let version = TodoDocument::load(root.join("TODO.md"))
+            .unwrap()
+            .snapshot()
+            .version;
+        (root, config, version)
+    }
+
+    #[test]
+    fn contradictory_proposals_are_rejected_when_proposed() {
+        let (root, config, version) = fixture("contradictory");
+        let functions = Functions {
+            registry_path: config,
+        };
+        let propose = |changes: Value| {
+            functions
+                .call(FunctionCall {
+                    function: "propose_task_changes".to_owned(),
+                    arguments: json!({
+                        "projectId": "demo",
+                        "baseVersion": version,
+                        "reason": "Check",
+                        "changes": changes,
+                    }),
+                })
+                .map(|_| ())
+        };
+
+        for changes in [
+            json!([
+                { "operation": "update", "taskId": "task-0", "checked": true },
+                { "operation": "delete", "taskId": "task-0" }
+            ]),
+            json!([
+                { "operation": "delete", "taskId": "task-1" },
+                { "operation": "add", "title": "Next", "afterTaskId": "task-1" }
+            ]),
+            json!([{ "operation": "add", "title": "  " }]),
+        ] {
+            let error = propose(changes.clone()).unwrap_err();
+            assert!(
+                matches!(error, TodoError::InvalidProposal(_)),
+                "{changes}: {error:?}"
+            );
+        }
+
+        assert!(ProposalStore::open(&root).unwrap().list().is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn without_override_the_registry_is_the_one_the_app_uses() {

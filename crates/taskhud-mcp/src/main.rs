@@ -9,6 +9,7 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use taskhud_core::{
     Project, ProjectRegistry, ProposalStore, TaskChange, TodoDocument, TodoError, TodoSnapshot,
+    propose_changes,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -162,60 +163,6 @@ impl TaskHudMcp {
         let project = self.project(project_id)?;
         TodoDocument::load(project.todo_path()).map(|document| document.snapshot())
     }
-
-    fn validate_changes(
-        &self,
-        snapshot: &TodoSnapshot,
-        changes: &[TaskChange],
-    ) -> Result<(), TodoError> {
-        let known_task = |task_id: &str| snapshot.tasks.iter().any(|task| task.id == task_id);
-        for change in changes {
-            match change {
-                TaskChange::Add {
-                    title,
-                    after_task_id,
-                } => {
-                    if title.trim().is_empty() {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: "an added task must have a title".to_owned(),
-                        });
-                    }
-                    if let Some(task_id) = after_task_id
-                        && !known_task(task_id)
-                    {
-                        return Err(TodoError::TaskNotFound(task_id.clone()));
-                    }
-                }
-                TaskChange::Update {
-                    task_id,
-                    title,
-                    checked,
-                } => {
-                    if !known_task(task_id) || (title.is_none() && checked.is_none()) {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: format!("invalid update for {task_id}"),
-                        });
-                    }
-                    if title
-                        .as_deref()
-                        .is_some_and(|value| value.trim().is_empty())
-                    {
-                        return Err(TodoError::InvalidConfig {
-                            path: self.registry_path.clone(),
-                            message: format!("the title of {task_id} cannot be empty"),
-                        });
-                    }
-                }
-                TaskChange::Delete { task_id } if !known_task(task_id) => {
-                    return Err(TodoError::TaskNotFound(task_id.clone()));
-                }
-                TaskChange::Delete { .. } => {}
-            }
-        }
-        Ok(())
-    }
 }
 
 #[tool_router(server_handler)]
@@ -260,15 +207,13 @@ impl TaskHudMcp {
     )]
     fn propose_tasks(&self, Parameters(args): Parameters<ProposeTasksArgs>) -> String {
         let result = (|| {
-            if args.reason.trim().is_empty() || args.tasks.is_empty() {
-                return Err(TodoError::InvalidConfig {
-                    path: self.registry_path.clone(),
-                    message: "a proposal must have a reason and at least one task".to_owned(),
-                });
+            if args.tasks.is_empty() {
+                return Err(TodoError::InvalidProposal(
+                    "a proposal must contain at least one task".to_owned(),
+                ));
             }
             let project = self.project_selector(args.project.as_deref())?;
-            let snapshot = self.load_snapshot(&project.id)?;
-            let changes: Vec<TaskChange> = args
+            let changes = args
                 .tasks
                 .into_iter()
                 .map(|title| TaskChange::Add {
@@ -276,9 +221,7 @@ impl TaskHudMcp {
                     after_task_id: None,
                 })
                 .collect();
-            self.validate_changes(&snapshot, &changes)?;
-            let mut store = ProposalStore::open(project.root)?;
-            store.add(project.id, snapshot.version, args.reason, changes)
+            propose_changes(&project, None, args.reason, changes)
         })();
         match result {
             Ok(proposal) => Self::json(&proposal),
@@ -291,30 +234,9 @@ impl TaskHudMcp {
     )]
     fn propose_task_changes(&self, Parameters(args): Parameters<ProposeTaskChangesArgs>) -> String {
         let result = (|| {
-            let snapshot = self.load_snapshot(&args.project_id)?;
-            if snapshot.version != args.base_version {
-                return Err(TodoError::Conflict {
-                    expected: args.base_version,
-                    actual: snapshot.version,
-                });
-            }
-            if args.changes.is_empty() {
-                return Err(TodoError::InvalidConfig {
-                    path: self.registry_path.clone(),
-                    message: "a proposal must contain at least one change".to_owned(),
-                });
-            }
-            if args.reason.trim().is_empty() {
-                return Err(TodoError::InvalidConfig {
-                    path: self.registry_path.clone(),
-                    message: "a proposal must explain its reason".to_owned(),
-                });
-            }
             let project = self.project(&args.project_id)?;
-            let mut store = ProposalStore::open(project.root)?;
-            let changes: Vec<TaskChange> = args.changes.into_iter().map(Into::into).collect();
-            self.validate_changes(&snapshot, &changes)?;
-            store.add(args.project_id, args.base_version, args.reason, changes)
+            let changes = args.changes.into_iter().map(Into::into).collect();
+            propose_changes(&project, Some(&args.base_version), args.reason, changes)
         })();
         match result {
             Ok(proposal) => Self::json(&proposal),
@@ -368,6 +290,74 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixture(label: &str) -> (PathBuf, PathBuf, String) {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = env::temp_dir().join(format!(
+            "taskhud-mcp-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("TODO.md"), "- [ ] Read\n- [ ] Write\n").unwrap();
+        let config = root.join("config.json");
+        std::fs::write(
+            &config,
+            serde_json::json!({
+                "activeProjectId": "demo",
+                "projects": [{ "id": "demo", "name": "Demo", "root": root }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let version = TodoDocument::load(root.join("TODO.md"))
+            .unwrap()
+            .snapshot()
+            .version;
+        (root, config, version)
+    }
+
+    #[test]
+    fn contradictory_proposals_are_rejected_when_proposed() {
+        let (root, config, version) = fixture("contradictory");
+        let server = TaskHudMcp {
+            registry_path: config,
+        };
+        let propose = |changes: serde_json::Value| {
+            let args: ProposeTaskChangesArgs = serde_json::from_value(serde_json::json!({
+                "projectId": "demo",
+                "baseVersion": version,
+                "reason": "Check",
+                "changes": changes,
+            }))
+            .unwrap();
+            server.propose_task_changes(Parameters(args))
+        };
+
+        let update_and_delete = propose(serde_json::json!([
+            { "operation": "update", "taskId": "task-0", "checked": true },
+            { "operation": "delete", "taskId": "task-0" }
+        ]));
+        assert!(
+            update_and_delete.contains("invalid proposal"),
+            "{update_and_delete}"
+        );
+        let add_after_deleted = propose(serde_json::json!([
+            { "operation": "delete", "taskId": "task-1" },
+            { "operation": "add", "title": "Next", "afterTaskId": "task-1" }
+        ]));
+        assert!(
+            add_after_deleted.contains("invalid proposal"),
+            "{add_after_deleted}"
+        );
+        let empty_title = propose(serde_json::json!([{ "operation": "add", "title": "  " }]));
+        assert!(empty_title.contains("invalid proposal"), "{empty_title}");
+
+        assert!(ProposalStore::open(&root).unwrap().list().is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn without_override_the_registry_is_the_one_the_app_uses() {
