@@ -1,0 +1,25 @@
+{
+  "rule": "A task line starts, after optional spaces or tabs, with '- [ ]', '- [x]' or '- [X]', followed by at least one space or tab and a non-empty title. The title is trimmed. Shared by the Rust core and the webview parser.",
+  "cases": [
+    { "line": "- [ ] Write the demo", "task": { "checked": false, "title": "Write the demo" } },
+    { "line": "- [x] Review the contract", "task": { "checked": true, "title": "Review the contract" } },
+    { "line": "- [X] Upper-case marker", "task": { "checked": true, "title": "Upper-case marker" } },
+    { "line": "  - [ ] Indented with spaces", "task": { "checked": false, "title": "Indented with spaces" } },
+    { "line": "\t- [x] Indented with a tab", "task": { "checked": true, "title": "Indented with a tab" } },
+    { "line": "- [ ]\tTab separator", "task": { "checked": false, "title": "Tab separator" } },
+    { "line": "- [ ]   Padded title   ", "task": { "checked": false, "title": "Padded title" } },
+    { "line": "- [ ] Write the demo — draft", "task": { "checked": false, "title": "Write the demo — draft" } },
+    { "line": "- [ ] Mention - [ ] in a title", "task": { "checked": false, "title": "Mention - [ ] in a title" } },
+    { "line": "Note - [ ] in the middle of a line", "task": null },
+    { "line": "-[ ] No space after the dash", "task": null },
+    { "line": "-  [ ] Two spaces after the dash", "task": null },
+    { "line": "- [ ]No space before the title", "task": null },
+    { "line": "- [ ]", "task": null },
+    { "line": "- [ ]   ", "task": null },
+    { "line": "- [y] Unknown marker", "task": null },
+    { "line": "* [ ] Star bullet", "task": null },
+    { "line": "1. [ ] Ordered list", "task": null },
+    { "line": "# Heading", "task": null },
+    { "line": "", "task": null }
+  ]
+}
