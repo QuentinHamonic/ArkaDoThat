@@ -85,6 +85,14 @@ impl ProposalStore {
         &self.proposals
     }
 
+    pub fn pending(&self) -> Vec<TaskProposal> {
+        self.proposals
+            .iter()
+            .filter(|proposal| proposal.status == ProposalStatus::Pending)
+            .cloned()
+            .collect()
+    }
+
     pub fn get(&self, proposal_id: &str) -> Result<&TaskProposal, TodoError> {
         self.proposals
             .iter()
@@ -125,6 +133,22 @@ impl ProposalStore {
         self.proposals.push(proposal.clone());
         self.save()?;
         Ok(proposal)
+    }
+
+    pub fn set_status(
+        &mut self,
+        proposal_id: &str,
+        status: ProposalStatus,
+    ) -> Result<TaskProposal, TodoError> {
+        let proposal = self
+            .proposals
+            .iter_mut()
+            .find(|proposal| proposal.id == proposal_id)
+            .ok_or_else(|| TodoError::ProposalNotFound(proposal_id.to_owned()))?;
+        proposal.status = status;
+        let updated = proposal.clone();
+        self.save()?;
+        Ok(updated)
     }
 
     fn save(&self) -> Result<(), TodoError> {

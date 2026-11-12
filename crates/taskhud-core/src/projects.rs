@@ -70,4 +70,42 @@ impl ProjectRegistry {
             .as_deref()
             .and_then(|id| self.projects.iter().find(|project| project.id == id))
     }
+
+    pub fn set_active_project(&mut self, project_id: impl Into<String>) -> Result<(), TodoError> {
+        let project_id = project_id.into();
+        self.project(&project_id)?;
+        self.active_project_id = Some(project_id);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_project_is_selected_by_id_without_changing_folder_links() {
+        let first = Project {
+            id: "first".to_owned(),
+            name: "Révisions".to_owned(),
+            root: PathBuf::from("C:/notes"),
+        };
+        let second = Project {
+            id: "second".to_owned(),
+            name: "Diginamic".to_owned(),
+            root: PathBuf::from("C:/diginamic"),
+        };
+        let mut registry = ProjectRegistry {
+            active_project_id: None,
+            projects: vec![first.clone(), second],
+        };
+
+        registry.set_active_project("first").unwrap();
+
+        assert_eq!(registry.active_project(), Some(&first));
+        assert_eq!(
+            registry.project("first").unwrap().todo_path(),
+            PathBuf::from("C:/notes/TODO.md")
+        );
+    }
 }

@@ -37,6 +37,8 @@ pub enum TodoError {
     ProposalNotFound(String),
     #[error("configuration invalide {path}: {message}")]
     InvalidConfig { path: PathBuf, message: String },
+    #[error("proposition invalide : {0}")]
+    InvalidProposal(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -141,6 +143,162 @@ impl TodoDocument {
         Ok(format!("{}{separator}- [ ] {title}{newline}", self.content))
     }
 
+    pub fn apply_changes(&self, changes: &[TaskChange]) -> Result<String, TodoError> {
+        if changes.is_empty() {
+            return Err(TodoError::InvalidProposal(
+                "une proposition doit contenir au moins un changement".to_owned(),
+            ));
+        }
+
+        let known_tasks: std::collections::HashMap<_, _> = self
+            .tasks
+            .iter()
+            .map(|parsed| (parsed.task.id.clone(), parsed.task.clone()))
+            .collect();
+        let mut targeted_tasks = std::collections::HashSet::new();
+        let mut updates = Vec::new();
+        let mut deletes = std::collections::HashSet::new();
+        let mut additions_after = Vec::new();
+        let mut additions_at_end = Vec::new();
+
+        for change in changes {
+            if let TaskChange::Delete { task_id } = change {
+                let task = known_tasks
+                    .get(task_id)
+                    .ok_or_else(|| TodoError::TaskNotFound(task_id.clone()))?;
+                deletes.insert(task.line_index);
+            }
+        }
+
+        for change in changes {
+            match change {
+                TaskChange::Add {
+                    title,
+                    after_task_id,
+                } => {
+                    let title = title.trim();
+                    if title.is_empty() {
+                        return Err(TodoError::InvalidProposal(
+                            "une tâche ajoutée doit avoir un titre".to_owned(),
+                        ));
+                    }
+                    if let Some(task_id) = after_task_id {
+                        let task = known_tasks
+                            .get(task_id)
+                            .ok_or_else(|| TodoError::TaskNotFound(task_id.clone()))?;
+                        if deletes.contains(&task.line_index) {
+                            return Err(TodoError::InvalidProposal(
+                                "une tâche ne peut pas être ajoutée après une tâche supprimée"
+                                    .to_owned(),
+                            ));
+                        }
+                        additions_after.push((task.line_index, format!("- [ ] {title}")));
+                    } else {
+                        additions_at_end.push(format!("- [ ] {title}"));
+                    }
+                }
+                TaskChange::Update {
+                    task_id,
+                    title,
+                    checked,
+                } => {
+                    let task = known_tasks
+                        .get(task_id)
+                        .ok_or_else(|| TodoError::TaskNotFound(task_id.clone()))?;
+                    if title.is_none() && checked.is_none() {
+                        return Err(TodoError::InvalidProposal(format!(
+                            "la modification de {task_id} est vide"
+                        )));
+                    }
+                    if title
+                        .as_deref()
+                        .is_some_and(|value| value.trim().is_empty())
+                    {
+                        return Err(TodoError::InvalidProposal(format!(
+                            "le titre de {task_id} ne peut pas être vide"
+                        )));
+                    }
+                    if !targeted_tasks.insert(task_id.clone()) {
+                        return Err(TodoError::InvalidProposal(format!(
+                            "la tâche {task_id} est modifiée plusieurs fois"
+                        )));
+                    }
+                    updates.push((
+                        task.line_index,
+                        task.clone(),
+                        title.as_deref().map(str::trim),
+                        *checked,
+                    ));
+                }
+                TaskChange::Delete { task_id } => {
+                    if !known_tasks.contains_key(task_id) {
+                        return Err(TodoError::TaskNotFound(task_id.clone()));
+                    }
+                    if !targeted_tasks.insert(task_id.clone()) {
+                        return Err(TodoError::InvalidProposal(format!(
+                            "la tâche {task_id} est modifiée plusieurs fois"
+                        )));
+                    }
+                }
+            }
+        }
+
+        let trailing_newline = self.content.ends_with('\n');
+        let mut lines: Vec<String> = self
+            .content
+            .split('\n')
+            .map(|line| line.strip_suffix('\r').unwrap_or(line).to_owned())
+            .collect();
+        if trailing_newline {
+            let _ = lines.pop();
+        }
+        if self.content.is_empty() {
+            lines.clear();
+        }
+
+        let mut result = Vec::with_capacity(lines.len() + changes.len());
+        for (line_index, line) in lines.iter().enumerate() {
+            if !deletes.contains(&line_index) {
+                if let Some((_, task, title, checked)) =
+                    updates.iter().find(|(index, ..)| *index == line_index)
+                {
+                    result.push(render_task_line(
+                        line,
+                        title.unwrap_or(task.title.as_str()),
+                        checked.unwrap_or(task.checked),
+                    ));
+                } else {
+                    result.push(line.clone());
+                }
+            }
+
+            for (anchor, addition) in additions_after
+                .iter()
+                .filter(|(anchor, _)| *anchor == line_index)
+            {
+                let _ = anchor;
+                result.push(addition.clone());
+            }
+        }
+        result.extend(additions_at_end);
+
+        let newline = if self.content.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let mut output = result.join(newline);
+        if trailing_newline
+            || !result.is_empty()
+                && changes
+                    .iter()
+                    .any(|change| matches!(change, TaskChange::Add { .. }))
+        {
+            output.push_str(newline);
+        }
+        Ok(output)
+    }
+
     pub fn save_if_unchanged(
         path: impl AsRef<Path>,
         expected_version: &str,
@@ -209,6 +367,17 @@ fn parse_tasks(content: &str) -> Vec<ParsedTask> {
 fn content_version(content: &str) -> String {
     let digest = Sha256::digest(content.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn render_task_line(line: &str, title: &str, checked: bool) -> String {
+    let marker_start = line.find("- [").unwrap_or(0);
+    let checkbox_offset = marker_start + 3;
+    format!(
+        "{}{}] {}",
+        &line[..checkbox_offset],
+        if checked { 'x' } else { ' ' },
+        title.trim()
+    )
 }
 
 pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), TodoError> {
@@ -402,6 +571,73 @@ mod tests {
 
         let reloaded = ProposalStore::open(&root).unwrap();
         assert_eq!(reloaded.get(&first.id).unwrap(), &first);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn apply_changes_updates_deletes_and_adds_tasks_without_rewriting_other_lines() {
+        let content = "# Révisions\n\n- [ ] Lire le cours\n- [x] Faire un exercice\n";
+        let document = TodoDocument::from_content("TODO.md", content.to_owned()).unwrap();
+        let changes = vec![
+            TaskChange::Update {
+                task_id: "task-2".to_owned(),
+                title: Some("Relire le cours".to_owned()),
+                checked: Some(true),
+            },
+            TaskChange::Delete {
+                task_id: "task-3".to_owned(),
+            },
+            TaskChange::Add {
+                title: "Faire une fiche".to_owned(),
+                after_task_id: Some("task-2".to_owned()),
+            },
+        ];
+
+        assert_eq!(
+            document.apply_changes(&changes).unwrap(),
+            "# Révisions\n\n- [x] Relire le cours\n- [ ] Faire une fiche\n"
+        );
+    }
+
+    #[test]
+    fn proposal_status_is_persisted_and_pending_list_excludes_decided_items() {
+        let root = std::env::temp_dir().join(format!(
+            "taskhud-core-proposal-status-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let mut store = ProposalStore::open(&root).unwrap();
+        let proposal = store
+            .add(
+                "demo".to_owned(),
+                "version-1".to_owned(),
+                "Réviser".to_owned(),
+                vec![TaskChange::Add {
+                    title: "Faire une fiche".to_owned(),
+                    after_task_id: None,
+                }],
+            )
+            .unwrap();
+
+        assert_eq!(store.pending().len(), 1);
+        let updated = store
+            .set_status(&proposal.id, ProposalStatus::Accepted)
+            .unwrap();
+        assert_eq!(updated.status, ProposalStatus::Accepted);
+        assert!(store.pending().is_empty());
+        assert_eq!(
+            ProposalStore::open(&root)
+                .unwrap()
+                .get(&proposal.id)
+                .unwrap()
+                .status,
+            ProposalStatus::Accepted
+        );
+
         let _ = fs::remove_dir_all(root);
     }
 }
