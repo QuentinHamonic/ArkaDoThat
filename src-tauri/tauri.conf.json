@@ -19,6 +19,9 @@
         "minHeight": 420,
         "maxWidth": 520,
         "maxHeight": 760,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
         "resizable": true,
         "fullscreen": false,
         "alwaysOnTop": true
