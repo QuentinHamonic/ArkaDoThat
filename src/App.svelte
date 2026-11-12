@@ -69,7 +69,10 @@
   let menuOpen = false;
   let projectMenuOpen = false;
   let selectedTaskId: string | null = null;
+  let selectedNoteKey: string | null = null;
   let detailNote = '';
+  // v2 : les anciennes notes « task-<ligne> » ne disent pas à quel fichier elles appartiennent ; elles restent sous l'ancienne clé.
+  const taskNotesStorageKey = 'taskhud.task-notes.v2';
   let taskNotes: Record<string, string> = {};
   let projects: Project[] = [];
   let activeProjectId: string | null = null;
@@ -92,7 +95,7 @@
     document.documentElement.classList.toggle('desktop-runtime', isDesktop);
     notice = isDesktop ? 'Aucun projet ouvert.' : 'Aucun fichier ouvert.';
     try {
-      taskNotes = JSON.parse(localStorage.getItem('taskhud.task-notes') ?? '{}') as Record<string, string>;
+      taskNotes = JSON.parse(localStorage.getItem(taskNotesStorageKey) ?? '{}') as Record<string, string>;
     } catch {
       taskNotes = {};
     }
@@ -171,23 +174,32 @@
     newTaskInput?.focus();
   }
 
+  // Une note est rattachée au fichier (chemin en desktop, nom en web) et au titre de la tâche, jamais à son numéro de ligne.
+  function taskNoteKey(title: string) {
+    return JSON.stringify([filePath ?? `web:${fileName}`, title]);
+  }
+
   function openTaskDetails(taskId: string) {
+    const task = tasks.find(candidate => candidate.id === taskId);
+    if (!task) return;
     selectedTaskId = taskId;
-    detailNote = taskNotes[taskId] ?? '';
+    selectedNoteKey = taskNoteKey(task.title);
+    detailNote = taskNotes[selectedNoteKey] ?? '';
     view = 'task-details';
     menuOpen = false;
   }
 
   function closeTaskDetails() {
     selectedTaskId = null;
+    selectedNoteKey = null;
     detailNote = '';
     view = 'tasks';
   }
 
   function persistDetailNote() {
-    if (!selectedTaskId) return;
-    taskNotes = { ...taskNotes, [selectedTaskId]: detailNote };
-    localStorage.setItem('taskhud.task-notes', JSON.stringify(taskNotes));
+    if (!selectedNoteKey) return;
+    taskNotes = { ...taskNotes, [selectedNoteKey]: detailNote };
+    localStorage.setItem(taskNotesStorageKey, JSON.stringify(taskNotes));
   }
 
   function navigate(nextView: View) {
