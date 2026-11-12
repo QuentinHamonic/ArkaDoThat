@@ -3212,6 +3212,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "taskhud-functions"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "taskhud-core",
+]
+
+[[package]]
 name = "taskhud-mcp"
 version = "0.1.0"
 dependencies = [
