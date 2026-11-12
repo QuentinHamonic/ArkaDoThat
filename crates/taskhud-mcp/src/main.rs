@@ -32,14 +32,20 @@ struct ProposalIdArgs {
 enum TaskChangeInput {
     Add {
         title: String,
+        #[schemars(rename = "afterTaskId")]
+        #[serde(rename = "afterTaskId", alias = "after_task_id")]
         after_task_id: Option<String>,
     },
     Update {
+        #[schemars(rename = "taskId")]
+        #[serde(rename = "taskId", alias = "task_id")]
         task_id: String,
         title: Option<String>,
         checked: Option<bool>,
     },
     Delete {
+        #[schemars(rename = "taskId")]
+        #[serde(rename = "taskId", alias = "task_id")]
         task_id: String,
     },
 }
@@ -81,6 +87,19 @@ struct ProposeTaskChangesArgs {
     changes: Vec<TaskChangeInput>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct ProposeTasksArgs {
+    #[schemars(
+        description = "Nom ou identifiant du projet ; le projet actif est utilisé si absent"
+    )]
+    project: Option<String>,
+    #[schemars(description = "Pourquoi ces tâches sont proposées")]
+    reason: String,
+    #[schemars(description = "Titres des tâches à ajouter")]
+    tasks: Vec<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProjectSummary {
@@ -103,6 +122,24 @@ impl TaskHudMcp {
 
     fn project(&self, project_id: &str) -> Result<Project, TodoError> {
         self.registry()?.project(project_id).cloned()
+    }
+
+    fn project_selector(&self, selector: Option<&str>) -> Result<Project, TodoError> {
+        let registry = self.registry()?;
+        if let Some(selector) = selector {
+            return registry
+                .projects
+                .iter()
+                .find(|project| {
+                    project.id == selector || project.name.eq_ignore_ascii_case(selector)
+                })
+                .cloned()
+                .ok_or_else(|| TodoError::ProjectNotFound(selector.to_owned()));
+        }
+        registry
+            .active_project()
+            .cloned()
+            .ok_or_else(|| TodoError::ProjectNotFound("actif".to_owned()))
     }
 
     fn summary(project: &Project) -> ProjectSummary {
@@ -220,6 +257,38 @@ impl TaskHudMcp {
     }
 
     #[tool(
+        description = "Enregistre en une opération une proposition d'ajout de tâches pour un projet, sans modifier TODO.md. La validation humaine est obligatoire."
+    )]
+    fn propose_tasks(&self, Parameters(args): Parameters<ProposeTasksArgs>) -> String {
+        let result = (|| {
+            if args.reason.trim().is_empty() || args.tasks.is_empty() {
+                return Err(TodoError::InvalidConfig {
+                    path: self.registry_path.clone(),
+                    message: "une proposition doit avoir une raison et au moins une tâche"
+                        .to_owned(),
+                });
+            }
+            let project = self.project_selector(args.project.as_deref())?;
+            let snapshot = self.load_snapshot(&project.id)?;
+            let changes: Vec<TaskChange> = args
+                .tasks
+                .into_iter()
+                .map(|title| TaskChange::Add {
+                    title,
+                    after_task_id: None,
+                })
+                .collect();
+            self.validate_changes(&snapshot, &changes)?;
+            let mut store = ProposalStore::open(project.root)?;
+            store.add(project.id, snapshot.version, args.reason, changes)
+        })();
+        match result {
+            Ok(proposal) => Self::json(&proposal),
+            Err(error) => Self::json(&serde_json::json!({ "error": error.to_string() })),
+        }
+    }
+
+    #[tool(
         description = "Enregistre une proposition structurée, sans modifier TODO.md. La validation humaine est obligatoire."
     )]
     fn propose_task_changes(&self, Parameters(args): Parameters<ProposeTaskChangesArgs>) -> String {
@@ -259,7 +328,7 @@ impl TaskHudMcp {
     fn list_proposals(&self, Parameters(args): Parameters<ProjectIdArgs>) -> String {
         let result = (|| {
             let project = self.project(&args.project_id)?;
-            Ok::<_, TodoError>(ProposalStore::open(project.root)?.list().to_vec())
+            Ok::<_, TodoError>(ProposalStore::open(project.root)?.pending())
         })();
         match result {
             Ok(proposals) => Self::json(&proposals),

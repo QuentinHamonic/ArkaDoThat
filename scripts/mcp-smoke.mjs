@@ -86,6 +86,7 @@ try {
     'list_projects',
     'get_project_tasks',
     'get_active_project',
+    'propose_tasks',
     'propose_task_changes',
     'list_proposals',
     'get_proposal',
@@ -107,17 +108,16 @@ try {
     arguments: { projectId: 'smoke' },
   }));
   const proposalArgs = {
-    projectId: 'smoke',
-    baseVersion: snapshot.version,
+    project: 'Smoke project',
     reason: 'Smoke test',
-    changes: [{ operation: 'add', title: 'Vérifier la déduplication', afterTaskId: null }],
+    tasks: ['Vérifier la déduplication'],
   };
   const firstProposal = textResult(await request('tools/call', {
-    name: 'propose_task_changes',
+    name: 'propose_tasks',
     arguments: proposalArgs,
   }));
   const duplicateProposal = textResult(await request('tools/call', {
-    name: 'propose_task_changes',
+    name: 'propose_tasks',
     arguments: proposalArgs,
   }));
   if (firstProposal.id !== duplicateProposal.id) throw new Error('Déduplication MCP absente');
