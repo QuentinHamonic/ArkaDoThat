@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit && npm test && vite build",
+    "test": "node --test \"src/**/*.test.ts\"",
     "build:desktop": "tauri build"
   },
   "devDependencies": {
