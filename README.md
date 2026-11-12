@@ -8,7 +8,7 @@ No account, cloud service, database, or HTTP server is required for the local wo
 
 The repository currently contains the V0.1 Tauri/Rust foundation, a working manual TODO flow, and two agent-facing connectors. `taskhud-mcp` exposes the domain through MCP `stdio`; `taskhud-functions` exposes the same bounded operations as compact JSONL function calls. Both can read tasks and persist proposals, but neither can apply a change silently. The desktop bridge loads pending proposals, shows their diff, and accepts or rejects them with a version check.
 
-This is not yet a packaged public release. VS Code workspace tracking, installers, cross-platform builds, and the complete native file-dialog/proposal journey are still open. The native WebView manual controls and Tauri commands have been checked. See [STATE.md](STATE.md) for the operational checkpoint.
+This is not yet a packaged public release. VS Code workspace tracking, installers, cross-platform builds, and the complete native file-dialog/proposal journey are still open. The native WebView manual controls and Tauri commands have been checked.
 
 ## Local development
 
@@ -53,7 +53,7 @@ The interface is in English by default and is also available in French. Choose t
 
 ## QA
 
-The acceptance contract is in [docs/SPEC.md](docs/SPEC.md). The versioned runner in `scripts/qa-runner.mjs` invokes Claude Code with a pinned Sonnet model and medium effort by default, records the tested commit and configuration, and never treats an unavailable review as a pass.
+The acceptance contract is in [docs/SPEC.md](docs/SPEC.md).
 
 ## License
 
