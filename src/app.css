@@ -93,6 +93,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .task-title:hover { color: var(--accent); }
 .checkmark { position: relative; width: 19px; height: 19px; flex: 0 0 auto; border: 1px solid #626268; border-radius: 50%; pointer-events: none; }
 .task-check:hover .checkmark { border-color: var(--accent); }
+.task-check input:focus-visible + .checkmark { outline: 2px solid var(--accent); outline-offset: 2px; }
 .task-check input:checked + .checkmark { border-color: #f2f2f2; background: #f2f2f2; }
 .task-check input:checked + .checkmark::after { position: absolute; top: 4px; left: 6px; width: 4px; height: 8px; border: solid #111; border-width: 0 2px 2px 0; transform: rotate(45deg); content: ""; }
 .task-row.completed .task-title { color: var(--muted); text-decoration: line-through; text-decoration-color: #6c6c71; }
