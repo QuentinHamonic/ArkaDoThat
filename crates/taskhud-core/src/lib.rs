@@ -417,7 +417,6 @@ pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), TodoError> 
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
     let temp_path = parent.join(format!(".{file_name}.{nonce}.taskhud.tmp"));
-    let backup_path = parent.join(format!(".{file_name}.{nonce}.taskhud.bak"));
 
     let mut temp = OpenOptions::new()
         .create_new(true)
@@ -438,27 +437,14 @@ pub(crate) fn atomic_write(path: &Path, content: &str) -> Result<(), TodoError> 
     })?;
     drop(temp);
 
-    let had_original = path.exists();
-    if had_original {
-        fs::rename(path, &backup_path).map_err(|source| TodoError::Write {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    }
-
+    // `fs::rename` replaces an existing destination on Windows and Unix, so the
+    // target is always either the old or the new content, never missing.
     if let Err(source) = fs::rename(&temp_path, path) {
-        if had_original {
-            let _ = fs::rename(&backup_path, path);
-        }
         let _ = fs::remove_file(&temp_path);
         return Err(TodoError::Write {
             path: path.to_path_buf(),
             source,
         });
-    }
-
-    if had_original {
-        let _ = fs::remove_file(backup_path);
     }
     Ok(())
 }
@@ -568,6 +554,52 @@ mod tests {
             "- [ ] External change\n"
         );
 
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn atomic_write_never_leaves_the_target_missing() {
+        let path = temp_todo_path("atomic");
+        fs::write(&path, "- [ ] Start\n").unwrap();
+        let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reader = {
+            let path = path.clone();
+            let done = done.clone();
+            std::thread::spawn(move || {
+                let mut failures = Vec::new();
+                while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                    if let Err(error) = fs::read_to_string(&path) {
+                        failures.push(error.kind());
+                    }
+                }
+                failures
+            })
+        };
+
+        for round in 0..300 {
+            atomic_write(&path, &format!("- [ ] Round {round}\n")).unwrap();
+        }
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        let failures = reader.join().unwrap();
+
+        assert!(
+            failures.is_empty(),
+            "reads failed during writes: {failures:?}"
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), "- [ ] Round 299\n");
+        let parent = path.parent().unwrap();
+        let stem = path.file_name().unwrap().to_str().unwrap();
+        let leftovers = fs::read_dir(parent)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(&format!(".{stem}."))
+            })
+            .count();
+        assert_eq!(leftovers, 0, "temporary files were left behind");
         let _ = fs::remove_file(path);
     }
 
