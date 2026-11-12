@@ -120,18 +120,27 @@ fn create_project(name: String, root: String) -> Result<Project, String> {
     Ok(project)
 }
 
+/// Opens a registered project: reads its `TODO.md` at `Project::todo_path()` and
+/// makes it the active project. The webview never builds file paths itself.
 #[tauri::command]
-fn set_active_project(project_id: String) -> Result<Project, String> {
-    let mut registry = load_project_registry()?;
-    let project = registry
-        .project(&project_id)
+fn open_project(project_id: String) -> Result<TodoSnapshot, String> {
+    open_project_in(&projects_config_path(), &project_id)
+}
+
+fn open_project_in(config_path: &Path, project_id: &str) -> Result<TodoSnapshot, String> {
+    let mut registry = ProjectRegistry::load(config_path).map_err(command_error)?;
+    let todo_path = registry
+        .project(project_id)
         .map_err(command_error)?
-        .clone();
+        .todo_path();
+    let snapshot = TodoDocument::load(todo_path)
+        .map(|document| document.snapshot())
+        .map_err(command_error)?;
     registry
         .set_active_project(project_id)
         .map_err(command_error)?;
-    save_project_registry(&registry)?;
-    Ok(project)
+    registry.save(config_path).map_err(command_error)?;
+    Ok(snapshot)
 }
 
 fn proposal_store_for(path: &Path) -> Result<ProposalStore, String> {
@@ -201,7 +210,7 @@ pub fn run() {
             save_todo,
             list_projects,
             create_project,
-            set_active_project,
+            open_project,
             list_pending_proposals,
             accept_proposal,
             reject_proposal
@@ -238,6 +247,42 @@ mod tests {
         ));
         fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    #[test]
+    fn open_project_reads_the_todo_from_the_registered_root_and_activates_it() {
+        let root = temp_project("open");
+        let project_root = root.join("nested project");
+        fs::create_dir_all(&project_root).unwrap();
+        fs::write(project_root.join("TODO.md"), "- [ ] Read\n").unwrap();
+        let config = root.join("config.json");
+        ProjectRegistry {
+            active_project_id: None,
+            projects: vec![Project {
+                id: "demo".to_owned(),
+                name: "Demo".to_owned(),
+                root: project_root.clone(),
+            }],
+        }
+        .save(&config)
+        .unwrap();
+
+        let snapshot = open_project_in(&config, "demo").unwrap();
+
+        assert_eq!(
+            std::path::PathBuf::from(&snapshot.path),
+            project_root.join("TODO.md")
+        );
+        assert_eq!(snapshot.tasks.len(), 1);
+        assert_eq!(
+            ProjectRegistry::load(&config)
+                .unwrap()
+                .active_project_id
+                .as_deref(),
+            Some("demo")
+        );
+        assert!(open_project_in(&config, "missing").is_err());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

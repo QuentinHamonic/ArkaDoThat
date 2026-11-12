@@ -230,10 +230,10 @@
 
   async function openProject(project: Project, showNotice = true) {
     try {
-      const snapshot = await invoke<TodoSnapshot>('read_todo', { path: `${project.root}\\TODO.md` });
+      // The backend resolves the TODO.md path; joining it here would break on macOS and Linux.
+      const snapshot = await invoke<TodoSnapshot>('open_project', { projectId: project.id });
       activeProjectId = project.id;
       applySnapshot(snapshot);
-      await invoke('set_active_project', { projectId: project.id });
       await refreshProposals();
       projectMenuOpen = false;
       view = 'tasks';
