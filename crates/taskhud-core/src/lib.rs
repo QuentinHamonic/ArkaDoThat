@@ -64,13 +64,7 @@ pub struct TodoDocument {
     path: PathBuf,
     content: String,
     version: String,
-    tasks: Vec<ParsedTask>,
-}
-
-#[derive(Debug, Clone)]
-struct ParsedTask {
-    task: Task,
-    checkbox_offset: usize,
+    tasks: Vec<Task>,
 }
 
 impl TodoDocument {
@@ -100,47 +94,8 @@ impl TodoDocument {
             path: self.path.display().to_string(),
             content: self.content.clone(),
             version: self.version.clone(),
-            tasks: self.tasks.iter().map(|task| task.task.clone()).collect(),
+            tasks: self.tasks.clone(),
         }
-    }
-
-    pub fn toggle_task(&self, task_id: &str) -> Result<String, TodoError> {
-        let task = self
-            .tasks
-            .iter()
-            .find(|candidate| candidate.task.id == task_id)
-            .ok_or_else(|| TodoError::TaskNotFound(task_id.to_owned()))?;
-
-        let mut content = self.content.clone();
-        let next_marker = if content.as_bytes()[task.checkbox_offset] == b'x' {
-            b' '
-        } else {
-            b'x'
-        };
-        content.replace_range(
-            task.checkbox_offset..task.checkbox_offset + 1,
-            &String::from(next_marker as char),
-        );
-        Ok(content)
-    }
-
-    pub fn append_task(&self, title: &str) -> Result<String, TodoError> {
-        let title = title.trim();
-        if title.is_empty() {
-            return Ok(self.content.clone());
-        }
-
-        let newline = if self.content.contains("\r\n") {
-            "\r\n"
-        } else {
-            "\n"
-        };
-        let separator = if self.content.is_empty() || self.content.ends_with(['\n', '\r']) {
-            ""
-        } else {
-            newline
-        };
-        Ok(format!("{}{separator}- [ ] {title}{newline}", self.content))
     }
 
     pub fn apply_changes(&self, changes: &[TaskChange]) -> Result<String, TodoError> {
@@ -153,7 +108,7 @@ impl TodoDocument {
         let known_tasks: std::collections::HashMap<_, _> = self
             .tasks
             .iter()
-            .map(|parsed| (parsed.task.id.clone(), parsed.task.clone()))
+            .map(|task| (task.id.clone(), task.clone()))
             .collect();
         let mut targeted_tasks = std::collections::HashSet::new();
         let mut updates = Vec::new();
@@ -366,28 +321,20 @@ fn parse_task_line(line: &str) -> Option<TaskLine<'_>> {
     })
 }
 
-fn parse_tasks(content: &str) -> Vec<ParsedTask> {
-    let mut tasks = Vec::new();
-    let mut offset = 0;
-
-    for (line_index, segment) in content.split_inclusive('\n').enumerate() {
-        let line = segment.strip_suffix('\n').unwrap_or(segment);
-        let line = line.strip_suffix('\r').unwrap_or(line);
-        if let Some(parsed) = parse_task_line(line) {
-            tasks.push(ParsedTask {
-                task: Task {
-                    id: format!("task-{line_index}"),
-                    title: parsed.title.to_owned(),
-                    checked: parsed.checked,
-                    line_index,
-                },
-                checkbox_offset: offset + parsed.marker_offset,
-            });
-        }
-        offset += segment.len();
-    }
-
-    tasks
+fn parse_tasks(content: &str) -> Vec<Task> {
+    content
+        .split('\n')
+        .enumerate()
+        .filter_map(|(line_index, line)| {
+            let line = line.strip_suffix('\r').unwrap_or(line);
+            parse_task_line(line).map(|parsed| Task {
+                id: format!("task-{line_index}"),
+                title: parsed.title.to_owned(),
+                checked: parsed.checked,
+                line_index,
+            })
+        })
+        .collect()
 }
 
 fn content_version(content: &str) -> String {
@@ -489,7 +436,7 @@ mod tests {
             let line = case["line"].as_str().unwrap();
             let parsed: Vec<_> = parse_tasks(line)
                 .into_iter()
-                .map(|parsed| serde_json::json!({ "checked": parsed.task.checked, "title": parsed.task.title }))
+                .map(|parsed| serde_json::json!({ "checked": parsed.checked, "title": parsed.title }))
                 .collect();
             let expected: Vec<_> = case["task"]
                 .as_object()
@@ -498,34 +445,6 @@ mod tests {
                 .collect();
             assert_eq!(parsed, expected, "line {line:?}");
         }
-    }
-
-    #[test]
-    fn toggle_task_changes_only_the_checkbox() {
-        let content = "- [ ] First\n- [x] Second\n";
-        let document = TodoDocument::from_content("TODO.md", content.to_owned()).unwrap();
-
-        assert_eq!(
-            document.toggle_task("task-0").unwrap(),
-            "- [x] First\n- [x] Second\n"
-        );
-        assert_eq!(
-            document.toggle_task("task-1").unwrap(),
-            "- [ ] First\n- [ ] Second\n"
-        );
-        assert!(matches!(
-            document.toggle_task("task-99"),
-            Err(TodoError::TaskNotFound(_))
-        ));
-    }
-
-    #[test]
-    fn append_task_keeps_the_existing_newline_style() {
-        let document = TodoDocument::from_content("TODO.md", "- [ ] Start\r\n".to_owned()).unwrap();
-        assert_eq!(
-            document.append_task("  New task  ").unwrap(),
-            "- [ ] Start\r\n- [ ] New task\r\n"
-        );
     }
 
     #[test]
