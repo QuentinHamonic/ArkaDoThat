@@ -34,15 +34,17 @@ The raw binary is written to `target\release\taskhud.exe`. The Tauri installers 
 The MCP server can be run independently:
 
 ```powershell
-cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
+cargo run -p taskhud-mcp
 ```
+
+Without arguments, the overlay and both connectors read the same project registry: `%APPDATA%\TaskHUD\config.json` on Windows, `$XDG_CONFIG_HOME/TaskHUD/config.json` or `~/.config/TaskHUD/config.json` elsewhere. `--config <path>` (connectors only) and the `TASKHUD_CONFIG` environment variable override it, in that order.
 
 See [docs/MCP.md](docs/MCP.md) for the local registry format and client configuration.
 
 The provider-neutral function facade can be run as a JSONL process:
 
 ```powershell
-cargo run -p taskhud-functions -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
+cargo run -p taskhud-functions
 ```
 
 See [docs/CONNECTORS.md](docs/CONNECTORS.md) for the compact function contract.

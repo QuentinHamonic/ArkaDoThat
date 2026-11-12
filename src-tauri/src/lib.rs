@@ -12,24 +12,9 @@ fn command_error(error: TodoError) -> String {
 }
 
 fn projects_config_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("TASKHUD_CONFIG") {
-        return PathBuf::from(path);
-    }
-
-    if cfg!(windows) {
-        std::env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("TaskHUD")
-            .join("config.json")
-    } else {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("TaskHUD")
-            .join("config.json")
-    }
+    std::env::var_os(taskhud_core::CONFIG_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(taskhud_core::default_config_path)
 }
 
 fn load_project_registry() -> Result<ProjectRegistry, String> {

@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+mod config;
 mod projects;
 mod proposals;
 
+pub use config::{CONFIG_ENV, config_path_from_args, default_config_path};
 pub use projects::{Project, ProjectRegistry};
 pub use proposals::{ProposalStatus, ProposalStore, TaskChange, TaskProposal};
 
@@ -39,6 +41,8 @@ pub enum TodoError {
     InvalidConfig { path: PathBuf, message: String },
     #[error("invalid proposal: {0}")]
     InvalidProposal(String),
+    #[error("invalid arguments: {0}")]
+    InvalidArguments(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

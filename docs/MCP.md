@@ -6,7 +6,9 @@ On purpose, the server offers no tool that applies a change directly. An agent c
 
 ## Local configuration
 
-Create a `config.json` file:
+By default the server reads the registry written by the TaskHUD overlay: `%APPDATA%\TaskHUD\config.json` on Windows, `$XDG_CONFIG_HOME/TaskHUD/config.json` or `~/.config/TaskHUD/config.json` elsewhere. `--config <path>` overrides it, then the `TASKHUD_CONFIG` environment variable.
+
+To declare projects by hand, create a `config.json` file:
 
 ```json
 {
@@ -28,13 +30,13 @@ The `root` path must point to an explicitly allowed project. TaskHUD only reads 
 From an installed release:
 
 ```text
-taskhud-mcp.exe --config C:\Users\you\AppData\Local\TaskHUD\config.json
+taskhud-mcp.exe --config C:\Users\you\AppData\Roaming\TaskHUD\config.json
 ```
 
 From source:
 
 ```powershell
-cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Local\TaskHUD\config.json
+cargo run -p taskhud-mcp -- --config C:\Users\you\AppData\Roaming\TaskHUD\config.json
 ```
 
 The server does not need the Tauri window to be open.
@@ -61,7 +63,7 @@ Example of a generic `stdio` configuration:
       "command": "C:\\Users\\you\\AppData\\Local\\TaskHUD\\taskhud-mcp.exe",
       "args": [
         "--config",
-        "C:\\Users\\you\\AppData\\Local\\TaskHUD\\config.json"
+        "C:\\Users\\you\\AppData\\Roaming\\TaskHUD\\config.json"
       ]
     }
   }

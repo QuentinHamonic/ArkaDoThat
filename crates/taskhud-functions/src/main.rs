@@ -359,27 +359,13 @@ impl Functions {
     }
 }
 
-fn config_path() -> Result<PathBuf, String> {
-    let mut args = env::args_os().skip(1);
-    while let Some(argument) = args.next() {
-        if argument == "--config" {
-            return args
-                .next()
-                .map(PathBuf::from)
-                .ok_or_else(|| "--config attend un chemin JSON".to_owned());
-        }
-    }
-    if let Some(path) = env::var_os("TASKHUD_CONFIG") {
-        return Ok(PathBuf::from(path));
-    }
-    env::current_dir()
-        .map(|path| path.join(".taskhud").join("config.json"))
-        .map_err(|error| error.to_string())
+fn config_path_from(args: Vec<std::ffi::OsString>) -> Result<PathBuf, String> {
+    taskhud_core::config_path_from_args(args).map_err(|error| error.to_string())
 }
 
 fn main() -> Result<(), String> {
     let functions = Functions {
-        registry_path: config_path()?,
+        registry_path: config_path_from(env::args_os().skip(1).collect())?,
     };
     for line in io::BufReader::new(io::stdin()).lines() {
         let line = line.map_err(|error| error.to_string())?;
@@ -399,4 +385,20 @@ fn main() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn without_override_the_registry_is_the_one_the_app_uses() {
+        if env::var_os(taskhud_core::CONFIG_ENV).is_some() {
+            return;
+        }
+        assert_eq!(
+            config_path_from(Vec::new()).unwrap(),
+            taskhud_core::default_config_path()
+        );
+    }
 }
