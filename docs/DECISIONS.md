@@ -16,11 +16,11 @@ An agent proposal is a pending intent. It is shown as a diff with two explicit d
 
 ## Visual direction
 
-The product draws on Markdown TODO extensions that keep the list human and diffable, and on small floating windows designed to stay visible without becoming a dashboard. In TaskHUD this becomes a compact graphite surface, an amber line reserved for the active signal and a distinct proposal area; no card grid and no heavy navigation.
+The product draws on Markdown TODO extensions that keep the list human and diffable, and on small floating windows designed to stay visible without becoming a dashboard. In ArkaDoThat this becomes a compact graphite surface, an amber line reserved for the active signal and a distinct proposal area; no card grid and no heavy navigation.
 
 ## 2026-11-12 — English by default, French as an option
 
-TaskHUD is going open source, so the code, documentation, connector messages and default interface are in English. The interface keeps a French dictionary selectable in Settings. Strings live in a small typed dictionary (`src/lib/i18n.ts`) with no i18n dependency: two languages and a few dozen strings do not justify one. Backend error messages and MCP descriptions stay English only, because they are read by developers and AI clients.
+ArkaDoThat is going open source, so the code, documentation, connector messages and default interface are in English. The interface keeps a French dictionary selectable in Settings. Strings live in a small typed dictionary (`src/lib/i18n.ts`) with no i18n dependency: two languages and a few dozen strings do not justify one. Backend error messages and MCP descriptions stay English only, because they are read by developers and AI clients.
 
 ## 2026-11-12 — One task syntax for the core and the webview
 
@@ -36,4 +36,4 @@ The public repository remains maintainer-led while development is private in pra
 
 ## 2026-11-27 — Solo review is a checklist gate
 
-GitHub does not count an author's own approval as an independent review. While TaskHUD has one maintainer, every change still goes through a pull request, green CI, a completed self-review checklist and an explicit merge decision. When an independent maintainer becomes available, the branch protection policy can require one approving review.
+GitHub does not count an author's own approval as an independent review. While ArkaDoThat has one maintainer, every change still goes through a pull request, green CI, a completed self-review checklist and an explicit merge decision. External contributions are not open by default. When an independent maintainer is explicitly added, the branch protection policy can require one approving review.

@@ -1,6 +1,8 @@
-# Contributing to TaskHUD
+# Contributing to ArkaDoThat
 
-TaskHUD is a local-first, maintainer-led project. The repository is public so people can use and inspect it. Development and release decisions follow the TaskHUD delivery workflow in docs/WORKFLOW.md.
+ArkaDoThat is a local-first project maintained by one person. The repository is public so people can use and inspect it, but general external contributions are not open by default. The maintainer may invite a focused contribution when it fits the roadmap. Development and release decisions follow the [ArkaDoThat delivery workflow](docs/WORKFLOW.md).
+
+Please do not open an unsolicited pull request. For a suspected security issue, follow [SECURITY.md](SECURITY.md). For a normal bug or request, an issue is useful, but it does not create an expectation of implementation or acceptance.
 
 ## Before opening a change
 
@@ -10,7 +12,7 @@ Read the README, docs/SPEC.md and docs/WORKFLOW.md. For a behavior change, write
 
 Create the branch from an up-to-date dev and open a pull request back to dev. The pull request must describe the behavior, tests run, documentation impact and any unverified platform check. Complete the self-review checklist in the pull request template.
 
-GitHub does not count the author's own approval as an independent review. The solo maintainer path therefore uses a mandatory pull request, green CI and an explicit self-review checklist. When an independent maintainer is available, the repository can require an approving review.
+GitHub does not count the author's own approval as an independent review. The solo maintainer path therefore uses a mandatory pull request, green CI and an explicit self-review checklist. No second maintainer or community approval is assumed at this stage.
 
 Before merge, run the independent end-of-slice review described in docs/WORKFLOW.md. It is a read-only critique with minimal context. Consider its findings and rerun the affected checks.
 

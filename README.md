@@ -1,6 +1,6 @@
-# TaskHUD
+# ArkaDoThat
 
-TaskHUD is a small local desktop overlay for developers who work with AI agents. It keeps one readable `TODO.md` per project, lets a human edit it, and exposes agent suggestions as reviewable local proposals.
+ArkaDoThat is a small local desktop overlay for developers who work with AI agents. It keeps one readable `TODO.md` per project, lets a human edit it, and exposes agent suggestions as reviewable local proposals.
 
 No account, cloud service, database, or HTTP server is required for the local workflow.
 
@@ -39,6 +39,8 @@ cargo run -p taskhud-mcp
 
 Without arguments, the overlay and both connectors read the same project registry: `%APPDATA%\TaskHUD\config.json` on Windows, `$XDG_CONFIG_HOME/TaskHUD/config.json` or `~/.config/TaskHUD/config.json` elsewhere. `--config <path>` (connectors only) and the `TASKHUD_CONFIG` environment variable override it, in that order.
 
+The product name is ArkaDoThat. The `taskhud-*` package, executable and configuration names are technical compatibility identifiers kept by the current implementation.
+
 See [docs/MCP.md](docs/MCP.md) for the local registry format and client configuration.
 
 The provider-neutral function facade can be run as a JSONL process:
@@ -59,8 +61,8 @@ The acceptance contract is in [docs/SPEC.md](docs/SPEC.md).
 
 ## Development and releases
 
-The repository follows the [TaskHUD delivery workflow](docs/WORKFLOW.md). Release planning and version gates live in [docs/RELEASES.md](docs/RELEASES.md).
+The repository follows the [ArkaDoThat delivery workflow](docs/WORKFLOW.md). Release planning and version gates live in [docs/RELEASES.md](docs/RELEASES.md).
 
 ## License
 
-TaskHUD is licensed under the GNU General Public License v3 or later. See [LICENSE](LICENSE).
+ArkaDoThat is licensed under the GNU General Public License v3 or later. See [LICENSE](LICENSE).

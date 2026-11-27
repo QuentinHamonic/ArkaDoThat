@@ -1,6 +1,6 @@
-# TaskHUD function connectors
+# ArkaDoThat function connectors
 
-The TaskHUD core exposes bounded domain operations. A connector can call them without getting general access to the file system.
+The ArkaDoThat core exposes bounded domain operations. A connector can call them without getting general access to the file system.
 
 ## Local JSONL facade
 

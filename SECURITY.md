@@ -1,6 +1,10 @@
 # Security policy
 
-TaskHUD is local-first software. It does not require an account, a cloud service or telemetry for its documented workflow.
+ArkaDoThat is local-first software. It does not require an account, a cloud service or telemetry for its documented workflow.
+
+## Automated secret scan
+
+Every pull request and push to the integration or stable branches runs GitLeaks against the complete Git history. The repository keeps the CI scan configuration in `.gitleaks.toml`; GitLeaks is not a local development prerequisite.
 
 ## Supported code
 

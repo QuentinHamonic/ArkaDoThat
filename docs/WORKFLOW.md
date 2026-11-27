@@ -1,6 +1,6 @@
-# TaskHUD delivery workflow
+# ArkaDoThat delivery workflow
 
-This document is the method for taking a change from an idea to a merged change or a released version. The repository is public, but development remains maintainer-led for now. The workflow keeps that private working style while leaving a clear record for users and future contributors.
+This document is the method for taking a change from an idea to a merged change or a released version. The repository is public, but development remains led by one maintainer for now. The workflow keeps that private working style while leaving a clear record for users and future readers.
 
 ## The flow
 
@@ -39,10 +39,10 @@ The current protection on dev requires a pull request, the six CI jobs below, re
 - UI journey (Playwright)
 - Rust (ubuntu-latest)
 - Rust (windows-latest)
-- Secret scan (full history)
+- Secret scan (full history) — GitLeaks
 - Dependency audit
 
-The required approval count is zero while the project has one maintainer. This is intentional because GitHub refuses to count the author's own approval as an independent review. The pull request template and the solo review checklist are the review gate in this phase. When an independent maintainer becomes available, change the required approval count to one and keep stale-review dismissal enabled.
+The required approval count is zero while the project has one maintainer. This is intentional because GitHub refuses to count the author's own approval as an independent review. The pull request template and the solo review checklist are the review gate in this phase. No community review or external contribution is assumed. When an independent maintainer is explicitly added, change the required approval count to one and keep stale-review dismissal enabled.
 
 ## Commit rules
 
