@@ -2,12 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [master, dev]
+    branches: [dev, main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -110,3 +111,18 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

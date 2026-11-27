@@ -25,3 +25,15 @@ TaskHUD is going open source, so the code, documentation, connector messages and
 ## 2026-11-12 — One task syntax for the core and the webview
 
 A task line starts, after optional spaces or tabs, with `- [ ]`, `- [x]` or `- [X]`, followed by at least one space or tab and a non-empty title (trimmed). Anything else, such as `- [ ]` in the middle of a line, `-[ ] title` or an empty `- [ ]`, stays plain text. The Rust core (`parse_task_line`) and the webview (`src/lib/todo.ts`) both test this rule against the same table, `crates/taskhud-core/fixtures/task-syntax.json`, so their task IDs and line numbers cannot drift apart.
+
+## 2026-11-27 — GPL-3.0-or-later as the project license
+
+The repository uses the GNU General Public License version 3 or any later version. The license file, README, package metadata and Rust manifests must keep this choice aligned.
+
+## 2026-11-27 — `dev` is the integration branch
+
+The public repository remains maintainer-led while development is private in practice. `dev` is the integration branch and the default branch for now. A future stable `main` branch will be introduced with the first packaged release. Feature, fix, documentation and release work reaches those branches through pull requests.
+
+## 2026-11-27 — Solo review is a checklist gate
+
+GitHub does not count an author's own approval as an independent review. While TaskHUD has one maintainer, every change still goes through a pull request, green CI, a completed self-review checklist and an explicit merge decision. When an independent maintainer becomes available, the branch protection policy can require one approving review.

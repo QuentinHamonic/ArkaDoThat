@@ -29,7 +29,7 @@ To build the Windows application and its installers:
 .\build-desktop.cmd
 ```
 
-The raw binary is written to `target\release\taskhud.exe`. The Tauri installers are in `target\release\bundle\` (including the `.exe` and `.msi` formats when the matching Windows tools are available). This command publishes nothing and needs no account.
+The raw binary is written to `target\release\taskhud.exe`. The build script also copies a portable executable to `TaskHUD.exe` in the project root. That local copy is ignored by Git. The Tauri installers are in `target\release\bundle\` (including the `.exe` and `.msi` formats when the matching Windows tools are available). This command publishes nothing and needs no account.
 
 The MCP server can be run independently:
 
@@ -57,6 +57,10 @@ The interface is in English by default and is also available in French. Choose t
 
 The acceptance contract is in [docs/SPEC.md](docs/SPEC.md).
 
+## Development and releases
+
+The repository follows the [TaskHUD delivery workflow](docs/WORKFLOW.md). Release planning and version gates live in [docs/RELEASES.md](docs/RELEASES.md).
+
 ## License
 
-TaskHUD is released under the MIT License. See [LICENSE](LICENSE).
+TaskHUD is licensed under the GNU General Public License v3 or later. See [LICENSE](LICENSE).

@@ -5,6 +5,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { appendTask, parseTodo, tasksMissingFrom, toggleTask } from './lib/todo';
   import { dictionaries, languages, loadLanguage, saveLanguage, type Language, type Messages } from './lib/i18n';
+  import { describeChange, type AgentChange, type ChangeKind, type ChangeView } from './lib/proposal';
 
   type TodoTask = {
     id: string;
@@ -19,11 +20,6 @@
     version: string;
     tasks: TodoTask[];
   };
-
-  type AgentChange =
-    | { operation: 'add'; title: string; afterTaskId?: string | null }
-    | { operation: 'update'; taskId: string; title?: string | null; checked?: boolean | null }
-    | { operation: 'delete'; taskId: string };
 
   type AgentProposal = {
     id: string;
@@ -89,6 +85,10 @@
   let proposalCollapsed = false;
   let proposalAnimationId = '';
   let proposalAnchor: HTMLElement;
+  let menuButton: HTMLButtonElement;
+  let appMenu: HTMLElement;
+  let projectPicker: HTMLElement;
+  let projectSelectButton: HTMLButtonElement;
   $: t = dictionaries[language];
   $: noticeText = notice(t);
   $: if (typeof document !== 'undefined') document.documentElement.lang = language;
@@ -99,7 +99,9 @@
   $: activeProposal = isDesktop ? proposals[0] ?? null : null;
   $: proposalIsStale = Boolean(isDesktop && activeProposal && activeProposal.baseVersion !== documentVersion);
   $: conflictLocalTasks = saveConflict ? tasksMissingFrom(markdown, saveConflict.disk.content) : [];
-  $: proposalBlocked =Boolean(isDesktop && activeProposal && (dirty || proposalIsStale));
+  $: proposalViews = activeProposal ? activeProposal.changes.map(change => describeChange(change, tasks)) : [];
+  $: proposalHasInvalidChanges = Boolean(activeProposal && (!proposalViews.length || proposalViews.some(change => change.kind === 'invalid' || !change.known)));
+  $: proposalBlocked = Boolean(isDesktop && activeProposal && (dirty || proposalIsStale || proposalHasInvalidChanges));
 
   onMount(() => {
     isDesktop = '__TAURI_INTERNALS__' in window;
@@ -213,6 +215,24 @@
     localStorage.setItem(taskNotesStorageKey, JSON.stringify(taskNotes));
   }
 
+  // Escape or a press outside a menu closes it; Escape gives the focus back to its trigger.
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    if (projectMenuOpen) {
+      projectMenuOpen = false;
+      projectSelectButton?.focus();
+    } else if (menuOpen) {
+      menuOpen = false;
+      menuButton?.focus();
+    }
+  }
+
+  function handleWindowPointerdown(event: PointerEvent) {
+    const target = event.target as Node;
+    if (menuOpen && !appMenu?.contains(target) && !menuButton?.contains(target)) menuOpen = false;
+    if (projectMenuOpen && !projectPicker?.contains(target)) projectMenuOpen = false;
+  }
+
   function navigate(nextView: View) {
     view = nextView;
     menuOpen = false;
@@ -226,13 +246,13 @@
       projects = registry.projects;
       activeProjectId = registry.activeProjectId;
       const active = registry.projects.find(project => project.id === registry.activeProjectId);
-      if (active) await openProject(active, false);
+      if (active) await openProject(active);
     } catch (error) {
       notice = errorNotice(error);
     }
   }
 
-  async function openProject(project: Project, showNotice = true) {
+  async function openProject(project: Project) {
     try {
       // The backend resolves the TODO.md path; joining it here would break on macOS and Linux.
       const snapshot = await invoke<TodoSnapshot>('open_project', { projectId: project.id });
@@ -241,7 +261,7 @@
       await refreshProposals();
       projectMenuOpen = false;
       view = 'tasks';
-      if (showNotice) notice = m => m.projectOpened(project.name);
+      notice = m => m.projectOpened(project.name);
     } catch (error) {
       notice = errorNotice(error);
     }
@@ -305,7 +325,7 @@
       return;
     }
     if (proposalBlocked) {
-      notice = dirty ? m => m.saving : m => m.proposalOutdated;
+      notice = dirty ? m => m.saving : proposalIsStale ? m => m.proposalOutdated : m => m.proposalInvalid;
       return;
     }
 
@@ -331,27 +351,25 @@
     notice = proposalCollapsed ? m => m.proposalHidden : m => m.proposalShown;
   }
 
-  function proposalTaskTitle(change: AgentChange, m: Messages) {
-    if (change.operation === 'add') return change.title;
-    const task = tasks.find(candidate => candidate.id === change.taskId);
-    if (change.operation === 'delete') return m.deletePrefix(task?.title ?? change.taskId);
-    return change.title ?? task?.title ?? m.updatePrefix(change.taskId);
+  const changeSymbols: Record<ChangeKind, string> = { add: '+', delete: '−', rename: '✎', check: '✓', uncheck: '○', invalid: '!' };
+
+  function changeLabel(change: ChangeView, m: Messages) {
+    const labels: Record<ChangeKind, string> = {
+      add: m.kindAdd,
+      delete: m.kindDelete,
+      rename: m.kindRename,
+      check: m.kindCheck,
+      uncheck: m.kindUncheck,
+      invalid: m.kindInvalid,
+    };
+    const label = change.kind === 'rename' && change.checked !== null
+      ? `${labels.rename} · ${change.checked ? m.kindCheck : m.kindUncheck}`
+      : labels[change.kind];
+    return change.known ? label : `${label} · ${m.unknownTask}`;
   }
 
-  function proposalTaskLabel(change: AgentChange, m: Messages) {
-    const kind = proposalTaskKind(change);
-    return kind === 'add' ? m.kindAdd : kind === 'delete' ? m.kindDelete : kind === 'check' ? m.kindCheck : m.kindUpdate;
-  }
-
-  function proposalTaskKind(change: AgentChange) {
-    if (change.operation === 'add') return 'add';
-    if (change.operation === 'delete') return 'delete';
-    return change.checked !== null && change.checked !== undefined && change.title == null ? 'check' : 'update';
-  }
-
-  function proposalTaskSymbol(change: AgentChange) {
-    const kind = proposalTaskKind(change);
-    return kind === 'add' ? '+' : kind === 'delete' ? '−' : kind === 'check' ? '✓' : '✎';
+  function changeText(change: ChangeView) {
+    return change.before && change.after ? `${change.before} → ${change.after}` : change.before ?? change.after ?? '';
   }
 
   async function rejectActiveProposal() {
@@ -570,6 +588,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleWindowKeydown} on:pointerdown={handleWindowPointerdown} />
+
 <svelte:head>
   <meta name="description" content={t.metaDescription} />
 </svelte:head>
@@ -582,7 +602,7 @@
     <div class="resize-handle resize-handle-se" aria-hidden="true" on:mousedown={(event) => beginResize('SouthEast', event)}></div>
   {/if}
   <header class="topbar">
-    <button class="menu-button" type="button" aria-label={t.openMenu} aria-expanded={menuOpen} on:click={() => menuOpen = !menuOpen}>☰</button>
+    <button bind:this={menuButton} class="menu-button" type="button" aria-label={t.openMenu} aria-expanded={menuOpen} on:click={() => menuOpen = !menuOpen}>☰</button>
     <div bind:this={titlebarDrag} class="titlebar-drag">
       <div class="brand-lockup">
         <h1>{view === 'settings' ? t.titleSettings : view === 'projects' ? t.titleProjects : view === 'task-details' ? t.titleDetails : t.titleTasks}</h1>
@@ -602,7 +622,7 @@
   </header>
 
   {#if menuOpen}
-    <nav class="app-menu" aria-label={t.mainMenu}>
+    <nav bind:this={appMenu} class="app-menu" aria-label={t.mainMenu}>
       <button type="button" on:click={() => navigate('settings')}>{t.menuSettings}</button>
       <button type="button" on:click={() => navigate('tasks')}>{t.menuTasks}</button>
       <button type="button" on:click={() => navigate('projects')}>{t.menuProjects}</button>
@@ -610,8 +630,8 @@
   {/if}
 
   {#if view === 'tasks'}
-    <div class="project-picker-wrap">
-      <button class="project-select" type="button" aria-label={t.openProjectLabel(projectName)} aria-expanded={projectMenuOpen} on:click={openFilePicker}>
+    <div bind:this={projectPicker} class="project-picker-wrap">
+      <button bind:this={projectSelectButton} class="project-select" type="button" aria-label={t.openProjectLabel(projectName)} aria-expanded={projectMenuOpen} on:click={openFilePicker}>
         <span>{projectName}</span>
         <span class="select-chevron" aria-hidden="true"></span>
       </button>
@@ -689,10 +709,22 @@
               {/if}
             </li>
             {#if !proposalCollapsed}
-              {#each activeProposal.changes as change}
-                <li class={`task-row proposal-task-row proposal-${proposalTaskKind(change)}`} aria-label={t.proposalItem(proposalTaskLabel(change, t), proposalTaskTitle(change, t))}>
-                  <span class="task-check proposal-task-check" aria-hidden="true"><span class="checkmark proposal-checkmark">{proposalTaskSymbol(change)}</span></span>
-                  <span class="task-title proposal-task-title">{proposalTaskTitle(change, t)}</span>
+              {#each proposalViews as change}
+                <li class={`task-row proposal-task-row proposal-${change.kind}`} aria-label={t.proposalItem(changeLabel(change, t), changeText(change))}>
+                  <span class="task-check proposal-task-check" aria-hidden="true"><span class="checkmark proposal-checkmark">{changeSymbols[change.kind]}</span></span>
+                  <span class="task-title proposal-task-title">
+                    <span class="proposal-kind">{changeLabel(change, t)}</span>
+                    {#if change.kind === 'add'}
+                      <span>{change.after}</span>
+                    {:else if change.kind === 'delete'}
+                      <del>{change.before}</del>
+                    {:else if change.after}
+                      <del>{change.before}</del>
+                      <span class="proposal-after">{change.after}</span>
+                    {:else}
+                      <span>{change.before}</span>
+                    {/if}
+                  </span>
                 </li>
               {/each}
               {#if proposalIsStale || dirty}
@@ -753,6 +785,10 @@
       </div>
       <div class="settings-card">
         <div><strong>{t.data}</strong><span class="setting-state">{t.localOnly}</span></div>
+      </div>
+      <div class="settings-card">
+        <div><strong>{t.license}</strong><span class="setting-state">{t.licenseShort}</span></div>
+        <p class="setting-detail">{t.licenseNotice} <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noreferrer">{t.viewLicense}</a></p>
       </div>
       <div class="settings-card">
         <div>
