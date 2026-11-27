@@ -8,9 +8,9 @@ Please do not open an unsolicited pull request. For a suspected security issue, 
 
 Read the README, docs/SPEC.md and docs/WORKFLOW.md. For a behavior change, write the user-visible outcome and its proof before coding. Keep the change focused on one observable slice.
 
-## Pull requests
+## Pull requests for invited work
 
-Create the branch from an up-to-date dev and open a pull request back to dev. The pull request must describe the behavior, tests run, documentation impact and any unverified platform check. Complete the self-review checklist in the pull request template.
+For a contribution explicitly invited by the maintainer, create the branch from an up-to-date dev and open a pull request back to dev. The pull request must describe the behavior, tests run, documentation impact and any unverified platform check. Complete the self-review checklist in the pull request template.
 
 GitHub does not count the author's own approval as an independent review. The solo maintainer path therefore uses a mandatory pull request, green CI and an explicit self-review checklist. No second maintainer or community approval is assumed at this stage.
 

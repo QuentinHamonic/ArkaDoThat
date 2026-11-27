@@ -4,7 +4,7 @@ This document is the method for taking a change from an idea to a merged change 
 
 ## The flow
 
-Every change follows these gates in order.
+Every maintainer change, and every contribution explicitly invited by the maintainer, follows these gates in order.
 
 1. **Plan** — Describe the user-visible outcome, the entry point, the expected effect, the failure that matters and the proof that will verify it. Put the acceptance criteria in the issue, TODO.md or the relevant specification.
 2. **Branch** — Start from an up-to-date origin/dev. Use feat/, fix/, docs/, test/, chore/ or release/ followed by a short kebab-case name. Keep one coherent change per branch.
