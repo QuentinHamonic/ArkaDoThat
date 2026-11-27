@@ -33,13 +33,14 @@ Do not use old local backup branches as a base. Keep them only until the corresp
 
 ## GitHub merge gate
 
-The current protection on dev requires a pull request, the five published CI jobs below, resolved conversations, linear history, no force-push and no branch deletion. The Dependency audit job is prepared in this working tree and becomes required immediately after this workflow is merged.
+The current protection on dev requires a pull request, the six CI jobs below, resolved conversations, linear history, no force-push and no branch deletion.
 
 - Frontend (type check + build)
 - UI journey (Playwright)
 - Rust (ubuntu-latest)
 - Rust (windows-latest)
 - Secret scan (full history)
+- Dependency audit
 
 The required approval count is zero while the project has one maintainer. This is intentional because GitHub refuses to count the author's own approval as an independent review. The pull request template and the solo review checklist are the review gate in this phase. When an independent maintainer becomes available, change the required approval count to one and keep stale-review dismissal enabled.
 
