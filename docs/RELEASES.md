@@ -1,6 +1,6 @@
-# TaskHUD release planning
+# ArkaDoThat release planning
 
-TaskHUD uses Semantic Versioning. Until the first stable release, the 0.x series may change behavior between minor versions. A release is a named, reviewable plan rather than a push made when the tree happens to look ready.
+ArkaDoThat uses Semantic Versioning. Until the first stable release, the 0.x series may change behavior between minor versions. A release is a named, reviewable plan rather than a push made when the tree happens to look ready.
 
 ## Release states
 

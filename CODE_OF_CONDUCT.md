@@ -1,7 +1,7 @@
 # Code of Conduct
 
-TaskHUD welcomes practical, respectful collaboration from people with different backgrounds and levels of experience.
+ArkaDoThat is currently maintained by one person. The repository is public so that people can use and inspect the project; general collaboration and unsolicited contributions are not open by default.
 
-Participants must keep discussions constructive, describe technical disagreements precisely, respect privacy and avoid harassment, discrimination, threats, personal attacks or deliberately disruptive behavior.
+Any invited discussion must remain constructive, precise and respectful. Harassment, discrimination, threats, personal attacks, privacy violations and deliberately disruptive behavior are not accepted.
 
-Project maintainers may edit, close or remove contributions that do not meet these standards. Report a conduct concern privately through the project maintainer's GitHub profile rather than in a public issue.
+The maintainer may close discussions, issues or pull requests that do not fit the current scope or these standards. Report a conduct concern privately through the [maintainer's GitHub profile](https://github.com/QuentinHamonic), never in a public issue.

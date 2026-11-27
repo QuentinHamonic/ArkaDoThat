@@ -1,29 +1,29 @@
-# TaskHUD MCP
+# ArkaDoThat MCP
 
-TaskHUD provides a standalone local MCP server, `taskhud-mcp`, over `stdio`. It only reads the projects declared in a JSON file and stores proposals in `.taskhud/proposals.json` under the project concerned.
+ArkaDoThat provides a standalone local MCP server, `taskhud-mcp`, over `stdio`. It only reads the projects declared in a JSON file and stores proposals in `.taskhud/proposals.json` under the project concerned.
 
-On purpose, the server offers no tool that applies a change directly. An agent can read the tasks and submit a diff, but applying that diff stays a human decision in TaskHUD.
+On purpose, the server offers no tool that applies a change directly. An agent can read the tasks and submit a diff, but applying that diff stays a human decision in ArkaDoThat.
 
 ## Local configuration
 
-By default the server reads the registry written by the TaskHUD overlay: `%APPDATA%\TaskHUD\config.json` on Windows, `$XDG_CONFIG_HOME/TaskHUD/config.json` or `~/.config/TaskHUD/config.json` elsewhere. `--config <path>` overrides it, then the `TASKHUD_CONFIG` environment variable.
+By default the server reads the registry written by the ArkaDoThat overlay. The current runtime keeps the technical compatibility paths `%APPDATA%\TaskHUD\config.json` on Windows, `$XDG_CONFIG_HOME/TaskHUD/config.json` or `~/.config/TaskHUD/config.json` elsewhere. `--config <path>` overrides it, then the `TASKHUD_CONFIG` environment variable.
 
 To declare projects by hand, create a `config.json` file:
 
 ```json
 {
-  "activeProjectId": "taskhud",
+  "activeProjectId": "arkadothat",
   "projects": [
     {
-      "id": "taskhud",
-      "name": "TaskHUD",
-      "root": "C:/Users/you/src/TaskHUD"
+      "id": "arkadothat",
+      "name": "ArkaDoThat",
+      "root": "C:/Users/you/src/ArkaDoThat"
     }
   ]
 }
 ```
 
-The `root` path must point to an explicitly allowed project. TaskHUD only reads `TODO.md` there and writes proposals to `.taskhud/`. Add `.taskhud/` to the Git ignore file of the tracked project; the TaskHUD repository already does.
+The `root` path must point to an explicitly allowed project. ArkaDoThat only reads `TODO.md` there and writes proposals to `.taskhud/`. The `.taskhud/` directory and the `taskhud-*` executable names are technical compatibility identifiers; the product name is ArkaDoThat.
 
 ## Run the server
 
@@ -59,7 +59,7 @@ Example of a generic `stdio` configuration:
 ```json
 {
   "mcpServers": {
-    "taskhud": {
+    "arkadothat": {
       "command": "C:\\Users\\you\\AppData\\Local\\TaskHUD\\taskhud-mcp.exe",
       "args": [
         "--config",

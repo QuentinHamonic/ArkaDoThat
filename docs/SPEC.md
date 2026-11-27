@@ -1,4 +1,4 @@
-# TaskHUD MVP specification
+# ArkaDoThat MVP specification
 
 ## Scope
 
