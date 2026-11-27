@@ -60,11 +60,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .close-button { font-size: 21px; }
 .close-button:hover { color: #f09a9a; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.resize-handle { position: absolute; z-index: 3; width: 28px; height: 28px; touch-action: none; }
-.resize-handle-nw { top: 0; left: 0; cursor: nwse-resize; }
-.resize-handle-ne { top: 0; right: 0; cursor: nesw-resize; }
-.resize-handle-sw { bottom: 0; left: 0; cursor: nesw-resize; }
-.resize-handle-se { right: 0; bottom: 0; cursor: nwse-resize; }
+/* Extend the corner targets along the edges without covering nearby controls. */
+.resize-handle { position: absolute; z-index: 3; width: 44px; height: 44px; touch-action: none; }
+.resize-handle-nw { top: 0; left: 0; cursor: nwse-resize; clip-path: polygon(0 0, 100% 0, 100% 12px, 12px 12px, 12px 100%, 0 100%); }
+.resize-handle-ne { top: 0; right: 0; cursor: nesw-resize; clip-path: polygon(0 0, 100% 0, 100% 100%, calc(100% - 12px) 100%, calc(100% - 12px) 12px, 0 12px); }
+.resize-handle-sw { bottom: 0; left: 0; cursor: nesw-resize; clip-path: polygon(0 0, 12px 0, 12px calc(100% - 12px), 100% calc(100% - 12px), 100% 100%, 0 100%); }
+.resize-handle-se { right: 0; bottom: 0; cursor: nwse-resize; clip-path: polygon(calc(100% - 12px) 0, 100% 0, 100% 100%, 0 100%, 0 calc(100% - 12px), calc(100% - 12px) calc(100% - 12px)); }
 
 .project-picker-wrap { position: relative; }
 .project-select { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--ink); font-size: 12px; text-align: left; }
@@ -122,11 +123,18 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .proposal-task-row { min-width: 0; }
 .proposal-task-check { cursor: default; }
 .proposal-checkmark { display: grid; place-items: center; font-size: 12px; font-weight: 700; }
-.proposal-task-title { cursor: default; }
-.proposal-add .proposal-checkmark, .proposal-add .proposal-task-title { border-color: var(--accent); color: var(--accent); }
-.proposal-delete .proposal-checkmark, .proposal-delete .proposal-task-title { border-color: #ef8585; color: #ef8585; }
-.proposal-update .proposal-checkmark, .proposal-update .proposal-task-title { border-color: #e9aa62; color: #e9aa62; }
-.proposal-check .proposal-checkmark, .proposal-check .proposal-task-title { border-color: #79aaf2; color: #79aaf2; }
+/* The kind is said in words and by the symbol; color only reinforces it. */
+.proposal-task-title { display: flex; flex-direction: column; gap: 2px; cursor: default; }
+.proposal-task-title:hover { color: var(--ink); }
+.proposal-kind { font-size: 11px; font-weight: 650; }
+.proposal-task-title del { color: var(--muted); text-decoration-color: #8a8a90; }
+.proposal-after::before { content: "→ "; color: var(--muted); }
+.proposal-add .proposal-checkmark, .proposal-add .proposal-kind { border-color: var(--accent); color: var(--accent); }
+.proposal-delete .proposal-checkmark, .proposal-delete .proposal-kind { border-color: #ef8585; color: #ef8585; }
+.proposal-rename .proposal-checkmark, .proposal-rename .proposal-kind { border-color: #e9aa62; color: #e9aa62; }
+.proposal-check .proposal-checkmark, .proposal-check .proposal-kind,
+.proposal-uncheck .proposal-checkmark, .proposal-uncheck .proposal-kind { border-color: #79aaf2; color: #79aaf2; }
+.proposal-invalid .proposal-checkmark, .proposal-invalid .proposal-kind { border-color: var(--warning); color: var(--warning); }
 .proposal-pulse { animation: proposal-pulse 1.4s ease-out; }
 @keyframes proposal-pulse { 0%, 100% { opacity: 1; } 24% { opacity: .68; } }
 .proposal-meta-row, .proposal-actions-row { display: block; border-bottom: 0; }
@@ -168,6 +176,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .detail-page textarea:focus { border-color: var(--accent); }
 .settings-card { margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: #0d0d0f; }
 .settings-card div { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.setting-detail { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.setting-detail a { color: var(--accent); }
 .setting-state { color: var(--accent); font-size: 10px; }
 .language-select { min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: #111113; color: var(--ink); font: inherit; font-size: 11px; }
 .language-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
